@@ -34,8 +34,8 @@ A web application for visualizing asteroid observation data from multiple source
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/mpc_observations.git
-cd mpc_observations
+git clone https://github.com/AlexeySergeyev/mpc_viewer.git
+cd mpc_viewer
 ```
 
 2. Create a virtual environment and activate it:
@@ -48,13 +48,19 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```bash
 pip install flask pandas numpy plotly astropy astroquery requests
 ```
+or
+```bash
+pip install -r requirements.txt
+```
 
 4. Run the application:
 ```bash
-python app.py
+python3 app.py
 ```
 
 5. Open your browser and navigate to: `http://127.0.0.1:5000/`
+
+6. The application is available at `https://asteroidimage-40467328593.europe-west8.run.app/`.
 
 ## Usage
 
