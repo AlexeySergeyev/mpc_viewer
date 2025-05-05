@@ -1,0 +1,18 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(22)",
+    "name": "Kalliope",
+    "object_type": [
+        "Minor Planet (Binary)",
+        1
+    ],
+    "orbfit_name": "22",
+    "packed_permid": "00022",
+    "packed_primary_provisional_designation": "I52W00A",
+    "packed_secondary_provisional_designations": [],
+    "permid": "22",
+    "unpacked_primary_provisional_designation": "A852 WA",
+    "unpacked_secondary_provisional_designations": []
+}

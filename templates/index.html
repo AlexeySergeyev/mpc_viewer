@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroid Data Viewer</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Asteroid Data Viewer</h1>
+        
+        <div class="row">
+            <!-- Fetch Asteroid Data Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Load Asteroid Data</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="fetchForm">
+                            <div class="mb-3">
+                                <label for="userInput" class="form-label">Enter Asteroid Name/Number:</label>
+                                <input type="text" class="form-control" id="userInput" placeholder="e.g., Ceres, 1, 4 Vesta" required>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-primary" id="loadMpcButton">
+                                    <span id="mpcSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    Load MPC
+                                </button>
+                                <button type="button" class="btn btn-info" id="loadMiriadeButton">
+                                    <span id="miriadeSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    Load Miriade
+                                </button>
+                                <button type="button" class="btn btn-info" id="loadZtfButton">
+                                    <span id="ztfSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    Load ZTF
+                                </button>
+                            </div>
+                        </form>
+                        <div id="fetchStatus" class="status-message alert mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Plot Observations Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Show Observations</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="plotForm">
+                            <div class="mb-3">
+                                <label for="asteroidId" class="form-label">Asteroid ID:</label>
+                                <input type="text" class="form-control" id="asteroidId" placeholder="ID will appear after loading data" readonly>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-success" disabled id="plotButton">
+                                    <span id="plotSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    Plot Observations
+                                </button>
+                                <button type="button" class="btn btn-primary" disabled id="plotPhaseButton">
+                                    <span id="plotPhaseSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    Plot Phase
+                                </button>
+                            </div>
+                        </form>
+                        <div id="plotStatus" class="status-message alert mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Plot Container -->
+        <div id="plotContainer" style="display: none;"></div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- <script> -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>         
+</body>
+</html>
