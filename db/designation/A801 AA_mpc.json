@@ -1,0 +1,24 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(1)",
+    "name": "Ceres",
+    "object_type": [
+        "Minor Planet",
+        0
+    ],
+    "orbfit_name": "1",
+    "packed_permid": "00001",
+    "packed_primary_provisional_designation": "I01A00A",
+    "packed_secondary_provisional_designations": [
+        "I99O00F",
+        "J43X00B"
+    ],
+    "permid": "1",
+    "unpacked_primary_provisional_designation": "A801 AA",
+    "unpacked_secondary_provisional_designations": [
+        "1943 XB",
+        "A899 OF"
+    ]
+}

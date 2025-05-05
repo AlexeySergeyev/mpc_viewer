@@ -184,12 +184,18 @@ def fetch_ztf_data(asteroid_name):
     if response.ok:
         ztf_data = response.json()
         ztf_df = pd.DataFrame(ztf_data)
+        if ztf_df.empty:
+            print(f"No data found for {iau_designation}")
+            return None
         ztf_df.to_csv(filename, index=False)
         print(f"{ztf_df.shape[0]} observations for {iau_designation} fetched successfully")
         return ztf_df.to_json(), iau_designation
     else:
         print("Error: ", response.status_code, response.content)
-        return None
+        return jsonify({
+            "status": "error",
+            "message": f"Error fetching data for {iau_designation}: {response.status_code} {response.content}"
+        })
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -217,11 +223,18 @@ def fetch_ztf():
     asteroid_name = data.get('userInput', '')
     print(f"Fetching ZTF data for asteroid {asteroid_name}")
     try:
-        data, iau_designation = fetch_ztf_data(asteroid_name)
+        data = fetch_ztf_data(asteroid_name)
+        if data is None:
+            return jsonify({
+                "status": "error", 
+                "message": f"No ZTF data found for asteroid {asteroid_name}"
+            })
+        else:
+            data_obs, iau_designation = data
         return jsonify({
             "status": "success", 
             "message": f"Data for asteroid {asteroid_name} (ID: {iau_designation}) retrived successfully from ZTF",
-            "data": data,
+            "data": data_obs,
             "id": iau_designation
         })
     except Exception as e:
@@ -500,5 +513,5 @@ def plot_phase():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
-    # app.run(debug=True)
+    # app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(debug=True)
