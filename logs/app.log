@@ -1,0 +1,76 @@
+2025-05-07 22:54:40,907 - __main__ - INFO - Starting Flask application. (app2.py:815)
+2025-05-07 22:55:26,048 - __main__ - DEBUG - Route / called with method: GET (app2.py:312)
+2025-05-07 22:55:32,300 - __main__ - INFO - Route /fetch_mpc called. (app2.py:317)
+2025-05-07 22:55:32,300 - __main__ - INFO - Fetching MPC data for user input: 1 (app2.py:325)
+2025-05-07 22:55:32,300 - __main__ - INFO - Fetching MPC data for asteroid: 1 (app2.py:143)
+2025-05-07 22:55:32,300 - __main__ - INFO - Attempting to get IAU designation for asteroid number: 1 (app2.py:101)
+2025-05-07 22:55:32,656 - __main__ - WARNING - No IAU designation found for asteroid number: 1 in response: {'disambiguation_list': None, 'dual_status_info': None, 'found': 0, 'iau_designation': None, 'name': None, 'object_type': None, 'orbfit_name': None, 'packed_permid': None, 'packed_primary_provisional_designation': None, 'packed_secondary_provisional_designations': None, 'permid': None, 'unpacked_primary_provisional_designation': None, 'unpacked_secondary_provisional_designations': None} (app2.py:120)
+2025-05-07 22:55:32,657 - __main__ - WARNING - Could not retrieve IAU designation for 1. Cannot fetch MPC data. (app2.py:147)
+2025-05-07 22:55:32,657 - __main__ - ERROR - Failed to get IAU designation for 1 for MPC data. (app2.py:330)
+2025-05-07 22:55:48,801 - __main__ - INFO - Route /fetch_mpc called. (app2.py:317)
+2025-05-07 22:55:48,801 - __main__ - INFO - Fetching MPC data for user input: 2 (app2.py:325)
+2025-05-07 22:55:48,801 - __main__ - INFO - Fetching MPC data for asteroid: 2 (app2.py:143)
+2025-05-07 22:55:48,801 - __main__ - INFO - Attempting to get IAU designation for asteroid number: 2 (app2.py:101)
+2025-05-07 22:55:49,090 - __main__ - WARNING - No IAU designation found for asteroid number: 2 in response: {'disambiguation_list': None, 'dual_status_info': None, 'found': 0, 'iau_designation': None, 'name': None, 'object_type': None, 'orbfit_name': None, 'packed_permid': None, 'packed_primary_provisional_designation': None, 'packed_secondary_provisional_designations': None, 'permid': None, 'unpacked_primary_provisional_designation': None, 'unpacked_secondary_provisional_designations': None} (app2.py:120)
+2025-05-07 22:55:49,091 - __main__ - WARNING - Could not retrieve IAU designation for 2. Cannot fetch MPC data. (app2.py:147)
+2025-05-07 22:55:49,091 - __main__ - ERROR - Failed to get IAU designation for 2 for MPC data. (app2.py:330)
+2025-05-07 22:55:56,373 - __main__ - INFO - Route /fetch_ztf called. (app2.py:361)
+2025-05-07 22:55:56,373 - __main__ - INFO - Fetching ZTF data for user input: 2 (app2.py:369)
+2025-05-07 22:55:56,373 - __main__ - INFO - Fetching ZTF data for asteroid: 2 (app2.py:252)
+2025-05-07 22:55:56,373 - __main__ - INFO - Attempting to get IAU designation for asteroid number: 2 (app2.py:101)
+2025-05-07 22:55:56,659 - __main__ - WARNING - No IAU designation found for asteroid number: 2 in response: {'disambiguation_list': None, 'dual_status_info': None, 'found': 0, 'iau_designation': None, 'name': None, 'object_type': None, 'orbfit_name': None, 'packed_permid': None, 'packed_primary_provisional_designation': None, 'packed_secondary_provisional_designations': None, 'permid': None, 'unpacked_primary_provisional_designation': None, 'unpacked_secondary_provisional_designations': None} (app2.py:120)
+2025-05-07 22:55:56,660 - __main__ - WARNING - Could not retrieve IAU designation for 2. Cannot fetch ZTF data. (app2.py:256)
+2025-05-07 22:55:56,660 - __main__ - ERROR - Failed to get IAU designation for 2 for ZTF data. (app2.py:374)
+2025-05-07 22:55:58,207 - __main__ - INFO - Route /fetch_miriade called. (app2.py:407)
+2025-05-07 22:55:58,208 - __main__ - INFO - Fetching Miriade data for user input: 2 (app2.py:415)
+2025-05-07 22:55:58,208 - __main__ - INFO - Attempting to get IAU designation for asteroid number: 2 (app2.py:101)
+2025-05-07 22:55:58,511 - __main__ - WARNING - No IAU designation found for asteroid number: 2 in response: {'disambiguation_list': None, 'dual_status_info': None, 'found': 0, 'iau_designation': None, 'name': None, 'object_type': None, 'orbfit_name': None, 'packed_permid': None, 'packed_primary_provisional_designation': None, 'packed_secondary_provisional_designations': None, 'permid': None, 'unpacked_primary_provisional_designation': None, 'unpacked_secondary_provisional_designations': None} (app2.py:120)
+2025-05-07 22:55:58,512 - __main__ - WARNING - Could not retrieve IAU designation for 2. Cannot fetch Miriade data. (app2.py:419)
+2025-05-07 23:01:48,623 [INFO] app:34 - MPC Viewer application starting up
+2025-05-07 23:01:48,624 [INFO] app:38 - Ensuring database directories exist
+2025-05-07 23:02:30,393 [INFO] app:34 - MPC Viewer application starting up
+2025-05-07 23:02:30,394 [INFO] app:38 - Ensuring database directories exist
+2025-05-07 23:14:59,239 [INFO] app:34 - MPC Viewer application starting up
+2025-05-07 23:14:59,239 [INFO] app:38 - Ensuring database directories exist
+2025-05-07 23:14:59,241 [INFO] app:543 - Starting MPC Viewer application
+2025-05-07 23:14:59,241 [INFO] app:549 - Running in debug mode on http://127.0.0.1:5000/
+2025-05-07 23:15:00,207 [INFO] app:34 - MPC Viewer application starting up
+2025-05-07 23:15:00,207 [INFO] app:38 - Ensuring database directories exist
+2025-05-07 23:15:00,208 [INFO] app:543 - Starting MPC Viewer application
+2025-05-07 23:15:00,208 [INFO] app:549 - Running in debug mode on http://127.0.0.1:5000/
+2025-05-07 23:15:05,045 [INFO] app:236 - Fetching MPC data for asteroid 1
+2025-05-07 23:15:05,045 [INFO] app:80 - Getting IAU designation for asteroid 1
+2025-05-07 23:15:05,565 [INFO] app:124 - Data for A801 AA loaded successfully from cache, shape: (8031, 69)
+2025-05-07 23:15:05,604 [INFO] app:239 - Successfully retrieved MPC data for 1 (ID: A801 AA)
+2025-05-07 23:15:07,995 [INFO] app:350 - Generating observations plot for asteroid A801 AA
+2025-05-07 23:15:07,996 [INFO] app:361 - ZTF data for A801 AA not found, skipping ZTF plot
+2025-05-07 23:15:08,042 [INFO] app:367 - MPC data for A801 AA loaded successfully, shape: (8031, 69)
+2025-05-07 23:15:08,042 [INFO] app:368 - Fetching observations for asteroid A801 AA from ./db/mpc/A801 AA_mpc.csv.gz
+2025-05-07 23:15:08,058 [INFO] app:61 - Loading observatory codes from MPC
+2025-05-07 23:15:08,751 [INFO] app:428 - Successfully generated observations plot for A801 AA with 7944 data points
+2025-05-07 23:19:16,147 [INFO] app:34 - MPC Viewer application starting up
+2025-05-07 23:19:16,148 [INFO] app:43 - Ensuring database directories exist
+2025-05-07 23:19:16,149 [INFO] app:548 - Starting MPC Viewer application
+2025-05-07 23:19:16,149 [INFO] app:554 - Running in debug mode on http://127.0.0.1:5000/
+2025-05-07 23:21:19,891 [INFO] app:241 - Fetching MPC data for asteroid 1
+2025-05-07 23:21:19,891 [INFO] app:85 - Getting IAU designation for asteroid 1
+2025-05-07 23:21:20,416 [INFO] app:129 - Data for A801 AA loaded successfully from cache, shape: (8031, 69)
+2025-05-07 23:21:20,456 [INFO] app:244 - Successfully retrieved MPC data for 1 (ID: A801 AA)
+2025-05-07 23:21:23,423 [INFO] app:288 - Fetching Miriade data for asteroid 1
+2025-05-07 23:21:23,423 [INFO] app:85 - Getting IAU designation for asteroid 1
+2025-05-07 23:21:23,790 [INFO] app:303 - MPC data for A801 AA loaded successfully from cache, shape: (8031, 69)
+2025-05-07 23:21:23,810 [INFO] app:315 - Miriade data for A801 AA loaded successfully from cache, shape: (8031, 11)
+2025-05-07 23:21:25,807 [INFO] app:355 - Generating observations plot for asteroid A801 AA
+2025-05-07 23:21:25,807 [INFO] app:366 - ZTF data for A801 AA not found, skipping ZTF plot
+2025-05-07 23:21:25,850 [INFO] app:372 - MPC data for A801 AA loaded successfully, shape: (8031, 69)
+2025-05-07 23:21:25,851 [INFO] app:373 - Fetching observations for asteroid A801 AA from ./db/mpc/A801 AA_mpc.csv.gz
+2025-05-07 23:21:25,862 [INFO] app:66 - Loading observatory codes from MPC
+2025-05-07 23:21:26,562 [INFO] app:433 - Successfully generated observations plot for A801 AA with 7944 data points
+2025-05-07 23:21:27,696 [INFO] app:453 - Generating phase plot for asteroid A801 AA
+2025-05-07 23:21:27,759 [INFO] app:474 - Phase plot data loaded - MPC shape: (8031, 69), Miriade shape: (8031, 11)
+2025-05-07 23:21:27,761 [INFO] app:66 - Loading observatory codes from MPC
+2025-05-07 23:21:28,223 [INFO] app:539 - Successfully generated phase plot for A801 AA with 8031 data points
+2025-05-07 23:22:21,916 [INFO] app:34 - MPC Viewer application starting up
+2025-05-07 23:22:21,916 [INFO] app:43 - Ensuring database directories exist
+2025-05-07 23:22:21,917 [INFO] app:548 - Starting MPC Viewer application
+2025-05-07 23:22:21,917 [INFO] app:554 - Running in debug mode on http://127.0.0.1:5000/

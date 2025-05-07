@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import requests
 import json
 import pandas as pd
@@ -8,12 +8,39 @@ import plotly.express as px
 import numpy as np
 from astropy.time import Time
 from astroquery.mpc import MPC
+import logging
+from logging.handlers import RotatingFileHandler
 
 
 app = Flask(__name__)
 
+# Configure logging
+log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'app.log')
+
+# Set up rotating file handler to avoid log files getting too large
+handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5)
+handler.setFormatter(logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d - %(message)s'
+))
+logger = logging.getLogger('mpc_viewer')
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
+
+# Add handler to Flask's logger as well
+app.logger.addHandler(handler)
+app.logger.setLevel(logging.INFO)
+app.logger.info('MPC Viewer application starting up')
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 # Create db directory if it doesn't exist
 os.makedirs('./db', exist_ok=True)
+logger.info('Ensuring database directories exist')
 
 # Constants for API URLs
 MPC_API_IDENTIFIER_URL = "https://data.minorplanetcenter.net/api/query-identifier"
@@ -36,11 +63,11 @@ def load_obsevatory_codes():
     Returns:
         dict: A dictionary mapping observatory codes to their names
     """
-    # 
+    logger.info("Loading observatory codes from MPC")
     obs = MPC.get_observatory_codes()
     d = dict(zip(obs['Code'].tolist(), 
              obs['Name'].tolist()))
-    
+    logger.debug(f"Loaded {len(d)} observatory codes")
     return d
 
 # obs_codes = load_obsevatory_codes
@@ -55,22 +82,23 @@ def get_id(asteroid_number):
     Returns:
         str: The generated ID
     """
+    logger.info(f"Getting IAU designation for asteroid {asteroid_number}")
     # Use the asteroid number as the ID
     response = requests.get(MPC_API_IDENTIFIER_URL, data=str(asteroid_number))
     iau_designation = None
     if response.ok:
         mpc_data = response.json()
         iau_designation = mpc_data.get('unpacked_primary_provisional_designation')
-        # print(json.dumps(response.json(), indent=4))
+        logger.debug(f"Response data: {json.dumps(mpc_data, indent=4)}")
         filename = f"./db/designation/{iau_designation}_mpc.json"
         if not os.path.exists(filename):
             # Save the response to a file
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             with open(filename, "w") as f:
                 json.dump(response.json(), f, indent=4)
-            print(f"Asteroid {asteroid_number} has IAU designation {iau_designation}")
+            logger.info(f"Asteroid {asteroid_number} has IAU designation {iau_designation}")
     else:
-        print("Error: ", response.status_code, response.content)
+        logger.error(f"Error getting IAU designation: {response.status_code} {response.content}")
     return iau_designation
 
 def fetch_mpc_data(asteroid_name):
@@ -90,6 +118,7 @@ def fetch_mpc_data(asteroid_name):
 
     # MPC sometimes requires specific formatting (e.g., '00001' for Ceres)
     if iau_designation is None:
+        logger.error(f"Asteroid {asteroid_name} not found in MPC database")
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in MPC database.")
     
@@ -97,21 +126,21 @@ def fetch_mpc_data(asteroid_name):
     if os.path.exists(filename):
         # If the file already exists, read it and return the data
         mpc_df = pd.read_csv(filename)
-        print(f"Data for {iau_designation} loaded successfully, shape: {mpc_df.shape}")
+        logger.info(f"Data for {iau_designation} loaded successfully from cache, shape: {mpc_df.shape}")
         return mpc_df.to_json(), iau_designation
     
+    logger.info(f"Fetching MPC observations for {iau_designation}")
     response = requests.get(MPC_API_OBSERVATIONS_URL, 
                             json={"desigs": [iau_designation], 
                                   "output_format":["ADES_DF"]})
     if response.ok:
-        # json_string = response.json()[0]
         mpc_data = response.json()[0]['ADES_DF']
         mpc_df = pd.DataFrame(mpc_data)
+        logger.info(f"Saving {mpc_df.shape[0]} observations for {iau_designation} to {filename}")
         mpc_df.to_csv(filename, index=False)
-        # print(f"{ades_df.shape[0]} observations for {iau_designation} fetched successfully")
         return mpc_data, iau_designation
     else:
-        print("Error: ", response.status_code, response.content)
+        logger.error(f"Error fetching MPC data: {response.status_code} {response.content}")
         return None
 
 def fetch_miriade_data(asteroid_name, epochs=None):
@@ -128,20 +157,22 @@ def fetch_miriade_data(asteroid_name, epochs=None):
         "-name": str(asteroid_name),
         **init_miriade_params,
     }
-    print(json.dumps(params, indent=4))
+    logger.debug(f"Miriade parameters: {json.dumps(params, indent=4)}")
     try:
+        logger.info(f"Sending request to Miriade for {asteroid_name} with {len(epochs['epochs'][1].split()) if epochs else 0} epochs")
         response = requests.post(IMCCE_MIRIADE_URL, params=params, 
             files=epochs, timeout=120)
-        print(f"Request URL: {response.url}")  # Debugging line to check the request URL
+        logger.debug(f"Request URL: {response.url}")
         response.raise_for_status()  # Raise an error for bad responses
         miriade_data = response.json()
+        logger.info(f"Received Miriade data with {len(miriade_data.get('data', [])) if miriade_data else 0} records")
         return miriade_data
     
     except requests.RequestException as e:
-        print(f"Error fetching data: {e}")
+        logger.error(f"Request error fetching Miriade data: {e}")
         return None
     except ValueError as e:
-        print(f"Error parsing JSON response: {e}")
+        logger.error(f"JSON parsing error with Miriade response: {e}")
         return None
 
 def fetch_ztf_data(asteroid_name):
@@ -160,6 +191,7 @@ def fetch_ztf_data(asteroid_name):
     
     # MPC sometimes requires specific formatting (e.g., '00001' for Ceres)
     if iau_designation is None:
+        logger.error(f"Asteroid {asteroid_name} not found in ZTF database")
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in ZTF database.")
     
@@ -167,9 +199,10 @@ def fetch_ztf_data(asteroid_name):
     if os.path.exists(filename):
         # If the file already exists, read it and return the data
         ztf_df = pd.read_csv(filename)
-        print(f"Data for {iau_designation} loaded successfully, shape: {ztf_df.shape}")
+        logger.info(f"ZTF data for {iau_designation} loaded successfully from cache, shape: {ztf_df.shape}")
         return ztf_df.to_json(), iau_designation
     
+    logger.info(f"Fetching ZTF data for {iau_designation}")
     query = {
         'n_or_d': iau_designation,
         'withEphem': True,
@@ -180,18 +213,18 @@ def fetch_ztf_data(asteroid_name):
         'https://api.fink-portal.org/api/v1/sso',
         json=query
     )
-    print(f"Request URL: {response.url}")  # Debugging line to check the request URL
+    logger.debug(f"Request URL: {response.url}")
     if response.ok:
         ztf_data = response.json()
         ztf_df = pd.DataFrame(ztf_data)
         if ztf_df.empty:
-            print(f"No data found for {iau_designation}")
+            logger.warning(f"No ZTF data found for {iau_designation}")
             return None
+        logger.info(f"Saving {ztf_df.shape[0]} ZTF observations for {iau_designation} to {filename}")
         ztf_df.to_csv(filename, index=False)
-        print(f"{ztf_df.shape[0]} observations for {iau_designation} fetched successfully")
         return ztf_df.to_json(), iau_designation
     else:
-        print("Error: ", response.status_code, response.content)
+        logger.error(f"Error fetching ZTF data: {response.status_code} {response.content}")
         return jsonify({
             "status": "error",
             "message": f"Error fetching data for {iau_designation}: {response.status_code} {response.content}"
@@ -205,9 +238,10 @@ def index():
 def fetch_asteroid():
     data = request.get_json()
     asteroid_name = data.get('userInput', '')
-    print(f"Fetching MPC data for asteroid {asteroid_name}")
+    logger.info(f"Fetching MPC data for asteroid {asteroid_name}")
     try:
         data, iau_designation = fetch_mpc_data(asteroid_name)
+        logger.info(f"Successfully retrieved MPC data for {asteroid_name} (ID: {iau_designation})")
         return jsonify({
             "status": "success", 
             "message": f"Data for asteroid {asteroid_name} (ID: {iau_designation}) loaded successfully from MPC",
@@ -215,29 +249,33 @@ def fetch_asteroid():
             "id": iau_designation
         })
     except Exception as e:
+        logger.error(f"Error fetching MPC data for {asteroid_name}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
     
 @app.route('/fetch_ztf', methods=['POST'])
 def fetch_ztf():
     data = request.get_json()
     asteroid_name = data.get('userInput', '')
-    print(f"Fetching ZTF data for asteroid {asteroid_name}")
+    logger.info(f"Fetching ZTF data for asteroid {asteroid_name}")
     try:
         data = fetch_ztf_data(asteroid_name)
         if data is None:
+            logger.warning(f"No ZTF data found for asteroid {asteroid_name}")
             return jsonify({
                 "status": "error", 
                 "message": f"No ZTF data found for asteroid {asteroid_name}"
             })
         else:
             data_obs, iau_designation = data
+        logger.info(f"Successfully retrieved ZTF data for {asteroid_name} (ID: {iau_designation})")
         return jsonify({
             "status": "success", 
-            "message": f"Data for asteroid {asteroid_name} (ID: {iau_designation}) retrived successfully from ZTF",
+            "message": f"Data for asteroid {asteroid_name} (ID: {iau_designation}) retrieved successfully from ZTF",
             "data": data_obs,
             "id": iau_designation
         })
     except Exception as e:
+        logger.error(f"Error fetching ZTF data for {asteroid_name}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/fetch_miriade', methods=['POST'])
@@ -247,12 +285,14 @@ def fetch_miriade():
     """
     data = request.get_json()
     asteroid_name = data.get('userInput', '')
+    logger.info(f"Fetching Miriade data for asteroid {asteroid_name}")
 
     # Check asteroid id
     iau_designation = get_id(asteroid_name)
 
     # MPC sometimes requires specific formatting (e.g., '00001' for Ceres)
     if iau_designation is None:
+        logger.error(f"Asteroid {asteroid_name} not found in MPC database")
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in MPC database.")
 
@@ -260,8 +300,9 @@ def fetch_miriade():
     if os.path.exists(filename_mpc):
         # If the file already exists, read it and return the data
         df_mpc = pd.read_csv(filename_mpc)
-        print(f"Data for {iau_designation} loaded successfully, shape: {df_mpc.shape}")
+        logger.info(f"MPC data for {iau_designation} loaded successfully from cache, shape: {df_mpc.shape}")
     else:
+        logger.warning(f"No MPC data found for asteroid {iau_designation}")
         return jsonify({
             "status": "error", 
             "message": f"No MPC data found for asteroid {iau_designation}"
@@ -271,7 +312,7 @@ def fetch_miriade():
     if os.path.exists(filename_midiade):
         # If the file already exists, read it and return the data
         miriade_df = pd.read_csv(filename_midiade)
-        print(f"Data for {iau_designation} loaded successfully, shape: {miriade_df.shape}")
+        logger.info(f"Miriade data for {iau_designation} loaded successfully from cache, shape: {miriade_df.shape}")
         return jsonify({
             "status": "success", 
             "message": f"Data for asteroid {asteroid_name} (ID: {iau_designation}) loaded successfully from Miriade",
@@ -287,55 +328,60 @@ def fetch_miriade():
     epochs = {'epochs':
                 ('epochs', '\n'.join(['%.6f' % epoch for epoch in epochs_jd]))}
     # Send the request to Miriade
-    print(f"Fetching Miriade data for asteroid {asteroid_name}")
+    logger.info(f"Fetching Miriade data for asteroid {asteroid_name} with {len(epochs_jd)} epochs")
     try:
         miriade_data = fetch_miriade_data(asteroid_name, epochs)
-        miriade_df = pd.DataFrame(miriade_data["data"])
-        miriade_df.to_csv(filename_midiade, index=False)
-        
-        return jsonify({
-            "status": "success", 
-            "message": f"Data for asteroid {asteroid_name} (ID: {iau_designation}) fetched successfully from MPC",
-            "data": miriade_data,
-            "id": iau_designation
-        })
+        if miriade_data and "data" in miriade_data:
+            miriade_df = pd.DataFrame(miriade_data["data"])
+            logger.info(f"Saving {miriade_df.shape[0]} Miriade records for {iau_designation} to {filename_midiade}")
+            miriade_df.to_csv(filename_midiade, index=False)
+            
+            return jsonify({
+                "status": "success", 
+                "message": f"Data for asteroid {asteroid_name} (ID: {iau_designation}) fetched successfully from Miriade",
+                "data": miriade_data,
+                "id": iau_designation
+            })
+        else:
+            logger.error(f"Failed to get valid Miriade data for {asteroid_name}")
+            return jsonify({"status": "error", "message": "Failed to get valid Miriade data"})
     except Exception as e:
+        logger.error(f"Error fetching Miriade data for {asteroid_name}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/plot_observations', methods=['POST'])
 def plot_observations():
     asteroid_id = request.form.get('asteroid_id')
+    logger.info(f"Generating observations plot for asteroid {asteroid_id}")
+    
     ztf_filename = f"./db/ztf/{asteroid_id}_ztf.csv.gz"
     df_ztf = None
     if os.path.exists(ztf_filename):
         df_ztf = pd.read_csv(ztf_filename)
-        print(f"ZTF data for {asteroid_id} loaded successfully, shape: {df_ztf.shape}")
+        logger.info(f"ZTF data for {asteroid_id} loaded successfully, shape: {df_ztf.shape}")
         df_ztf['obstime'] = pd.to_datetime(df_ztf['Date'], origin='julian', unit='D')
         show_ztf = True
     else:
         show_ztf = False
-        print(f"ZTF data for {asteroid_id} not found, skipping ZTF plot")
+        logger.info(f"ZTF data for {asteroid_id} not found, skipping ZTF plot")
     
     df_mpc = None
     mpc_filename = f"./db/mpc/{asteroid_id}_mpc.csv.gz"
     if os.path.exists(mpc_filename):
         df_mpc = pd.read_csv(mpc_filename)
-        print(f"MPC data for {asteroid_id} loaded successfully, shape: {df_mpc.shape}")
-    print(f"Fetching observations for asteroid {asteroid_id} from {mpc_filename}")
+        logger.info(f"MPC data for {asteroid_id} loaded successfully, shape: {df_mpc.shape}")
+    logger.info(f"Fetching observations for asteroid {asteroid_id} from {mpc_filename}")
 
     if df_mpc is not None:
-        # Filter for columns we need
         # Check if mag and obstime/obsTime columns exist
         if 'mag' not in df_mpc.columns or not 'obstime' in df_mpc.columns:
+            logger.error(f"The observation data for {asteroid_id} does not contain magnitude or time data")
             return jsonify({
                 "status": "error",
                 "message": "The observation data does not contain magnitude or time data"
             })
         else:
-            # # Take only rows with magnitude values
-            # df = df_mpc.dropna(subset=['mag'])
-            print(f"Magnitude values range: {df_mpc['mag'].min()} to {df_mpc['mag'].max()}")
-            
+            logger.debug(f"Magnitude values range: {df_mpc['mag'].min()} to {df_mpc['mag'].max()}")
             
             # Convert observation time to datetime if needed
             if df_mpc['obstime'].dtype != 'datetime64[ns]':
@@ -359,6 +405,7 @@ def plot_observations():
                 hovertemplate='Observatory: %{customdata[0]}<br>%{customdata[1]}<br>Time: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
             )
             if show_ztf:
+                logger.debug(f"Adding ZTF data to the plot for {asteroid_id}")
                 fig.add_scatter(
                     x=df_ztf['obstime'],
                     y=df_ztf['i:magpsf'],
@@ -367,15 +414,6 @@ def plot_observations():
                     name='ZTF gr-band',
                     hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>%{x}<br>Mag: %{y:.2f}<extra></extra>'
                 )
-
-            #     fig.add_scatter(
-            #         x=df_ztf['obstime'],
-            #         y=df_ztf['SDSS:r'],
-            #         mode='markers',
-            #         marker=dict(size=4, color='red'),
-            #         name='ZTF r-band',
-            #         hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>%{x}<br>Mag: %{y:.2f}<extra></extra>'
-            # )
             
             # Invert y-axis (astronomical convention: brighter objects have lower magnitudes)
             fig.update_layout(yaxis=dict(autorange="reversed"))
@@ -385,8 +423,6 @@ def plot_observations():
                 xaxis_title='Observation Time',
                 yaxis_title='Magnitude',
                 height=600,
-                # margin=dict(l=50, r=50, b=100, t=100),
-                # plot_bgcolor='rgba(240, 240, 240, 0.8)',
                 legend_title_text='Observatory',
                 template='plotly_white',
             )
@@ -394,13 +430,14 @@ def plot_observations():
             # Convert to JSON for sending to the client
             graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
             
-            
+            logger.info(f"Successfully generated observations plot for {asteroid_id} with {len(df_mpc) if df_ztf is None else len(df_mpc) + len(df_ztf)} data points")
             return jsonify({
                 "status": "success",
                 "plot": graphJSON,
-                "count": len(df_mpc) if df_ztf is None else len(df_mpc) + len(df_ztf),
-            })        
+                "count": len(df_mpc) if df_ztf is None else len(df_mpc) + len(df_ztf)
+            })
     else:
+        logger.warning(f"No MPC data found for asteroid {asteroid_id}")
         return jsonify({
             "status": "error",
             "message": f"No data found for asteroid {asteroid_id}"
@@ -413,7 +450,7 @@ def plot_phase():
     miriade_filename = f"./db/miriade/{asteroid_id}_miriade.csv.gz"
     ztf_filename = f"./db/ztf/{asteroid_id}_ztf.csv.gz"
     
-    print(f"Generating phase plot for asteroid {asteroid_id}")
+    logger.info(f"Generating phase plot for asteroid {asteroid_id}")
 
     # Check if both files exist
     if not os.path.exists(mpc_filename) or not os.path.exists(miriade_filename):
@@ -423,6 +460,7 @@ def plot_phase():
         if not os.path.exists(miriade_filename):
             missing.append("Miriade")
         
+        logger.warning(f"Missing data for phase plot of {asteroid_id}: {', '.join(missing)} data not found")
         return jsonify({
             "status": "error",
             "message": f"Missing data for asteroid {asteroid_id}: {', '.join(missing)} data not found"
@@ -433,7 +471,7 @@ def plot_phase():
         mpc_df = pd.read_csv(mpc_filename)
         miriade_df = pd.read_csv(miriade_filename)
         
-        print(f"MPC data shape: {mpc_df.shape}, Miriade data shape: {miriade_df.shape}")
+        logger.info(f"Phase plot data loaded - MPC shape: {mpc_df.shape}, Miriade shape: {miriade_df.shape}")
         
         df_merged = pd.concat([mpc_df, miriade_df], axis=1)
         df_merged['mag_dist_corr'] = 5 * np.log10(df_merged['Dhelio'] * df_merged['Dobs'])
@@ -441,17 +479,18 @@ def plot_phase():
         ztf_df = None
         if os.path.exists(ztf_filename):
             ztf_df = pd.read_csv(ztf_filename)
-            print(f"ZTF data shape: {ztf_df.shape}")
+            logger.info(f"Including ZTF data in phase plot, shape: {ztf_df.shape}")
             ztf_df['obstime'] = pd.to_datetime(ztf_df['Date'], origin='julian', unit='D')
             ztf_df['mag_dist_corr'] = 5 * np.log10(ztf_df['Dhelio'] * ztf_df['Dobs'])
         
         if len(df_merged) == 0:
+            logger.warning(f"No matching phase data found for asteroid {asteroid_id}")
             return jsonify({
                 "status": "error",
                 "message": f"No matching phase data found for asteroid {asteroid_id}"
             })
     except Exception as e:
-        print(f"Error processing phase plot data: {str(e)}")
+        logger.error(f"Error processing phase plot data for {asteroid_id}: {str(e)}")
         return jsonify({
             "status": "error",
             "message": f"Error processing phase plot data: {str(e)}"
@@ -472,6 +511,7 @@ def plot_phase():
                 hovertemplate='Observatory: %{customdata[0]}<br>Name: %{customdata[1]}<br>Phase: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
             )
     if ztf_df is not None:
+        logger.debug(f"Adding ZTF data to the phase plot for {asteroid_id}")
         fig.add_scatter(
             x=ztf_df['Phase'],
             y=ztf_df['i:magpsf'] - ztf_df['mag_dist_corr'],
@@ -480,15 +520,6 @@ def plot_phase():
             name='ZTF gr-band',
             hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Phase: %{x}<br>Mag: %{y:.2f}<extra></extra>'
         )
-
-        # fig.add_scatter(
-        #     x=ztf_df['Phase'],
-        #     y=ztf_df['SDSS:r'] - ztf_df['mag_dist_corr'],
-        #     mode='markers',
-        #     marker=dict(size=4, color='red'),
-        #     name='ZTF r-band',
-        #     hovertemplate='Observatory: I41<br>Phase: %{x}<br>Palomar Mountain ZTF<br>Mag: %{y:.2f}<extra></extra>'
-        # )
     
     # Invert y-axis (astronomical convention: brighter objects have lower magnitudes)
     fig.update_layout(yaxis=dict(autorange="reversed"))
@@ -498,7 +529,6 @@ def plot_phase():
         xaxis_title='Phase Angle (degrees)',
         yaxis_title='Magnitude',
         height=600,
-        # plot_bgcolor='rgba(240, 240, 240, 0.8)',
         legend_title_text='Observatory',
         template='plotly_white',
     )
@@ -506,6 +536,7 @@ def plot_phase():
     # Convert to JSON for sending to the client
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     
+    logger.info(f"Successfully generated phase plot for {asteroid_id} with {len(df_merged)} data points")
     return jsonify({
         "status": "success",
         "plot": graphJSON,
@@ -513,5 +544,12 @@ def plot_phase():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
-    # app.run(debug=True)
+    # Final setup for logging
+    logger.info("Starting MPC Viewer application")
+    
+    # Uncomment the following line to run in production mode
+    # app.run(host='0.0.0.0', port=5000, debug=False)
+    
+    # Development mode with debug enabled
+    logger.info("Running in debug mode on http://127.0.0.1:5000/")
+    app.run(debug=True)
