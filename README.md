@@ -60,7 +60,7 @@ python3 app.py
 
 5. Open your browser and navigate to: `http://127.0.0.1:5000/`
 
-6. The application is available at `https://asteroidimage-40467328593.europe-west8.run.app/`.
+6. The application is available at the AWS: `http://51.44.180.15:5000/`.
 
 ## Usage
 
