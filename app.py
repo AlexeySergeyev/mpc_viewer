@@ -568,8 +568,8 @@ if __name__ == '__main__':
     logger.info("Starting MPC Viewer application")
     
     # Uncomment the following line to run in production mode
-    # app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)
     
     # Development mode with debug enabled
     logger.info("Running in debug mode on http://127.0.0.1:5000/")
-    app.run(debug=True)
+    # app.run(debug=True)

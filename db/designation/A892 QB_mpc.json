@@ -1,0 +1,22 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(334)",
+    "name": "Chicago",
+    "object_type": [
+        "Minor Planet",
+        0
+    ],
+    "orbfit_name": "334",
+    "packed_permid": "00334",
+    "packed_primary_provisional_designation": "I92Q00B",
+    "packed_secondary_provisional_designations": [
+        "J03H00A"
+    ],
+    "permid": "334",
+    "unpacked_primary_provisional_designation": "A892 QB",
+    "unpacked_secondary_provisional_designations": [
+        "A903 HA"
+    ]
+}

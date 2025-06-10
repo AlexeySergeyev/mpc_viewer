@@ -1,0 +1,22 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(10)",
+    "name": "Hygiea",
+    "object_type": [
+        "Minor Planet",
+        0
+    ],
+    "orbfit_name": "10",
+    "packed_permid": "00010",
+    "packed_primary_provisional_designation": "I49G00A",
+    "packed_secondary_provisional_designations": [
+        "J00G00A"
+    ],
+    "permid": "10",
+    "unpacked_primary_provisional_designation": "A849 GA",
+    "unpacked_secondary_provisional_designations": [
+        "A900 GA"
+    ]
+}

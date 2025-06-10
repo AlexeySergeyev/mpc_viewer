@@ -1,0 +1,24 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(110)",
+    "name": "Lydia",
+    "object_type": [
+        "Minor Planet",
+        0
+    ],
+    "orbfit_name": "110",
+    "packed_permid": "00110",
+    "packed_primary_provisional_designation": "I70H00A",
+    "packed_secondary_provisional_designations": [
+        "I99V00A",
+        "J72Y01S"
+    ],
+    "permid": "110",
+    "unpacked_primary_provisional_designation": "A870 HA",
+    "unpacked_secondary_provisional_designations": [
+        "1972 YS1",
+        "A899 VA"
+    ]
+}

@@ -1,0 +1,22 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(3256)",
+    "name": "Daguerre",
+    "object_type": [
+        "Minor Planet",
+        0
+    ],
+    "orbfit_name": "3256",
+    "packed_permid": "03256",
+    "packed_primary_provisional_designation": "J81S01J",
+    "packed_secondary_provisional_designations": [
+        "J76Q00W"
+    ],
+    "permid": "3256",
+    "unpacked_primary_provisional_designation": "1981 SJ1",
+    "unpacked_secondary_provisional_designations": [
+        "1976 QW"
+    ]
+}

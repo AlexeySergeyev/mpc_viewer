@@ -1,0 +1,24 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(223)",
+    "name": "Rosa",
+    "object_type": [
+        "Minor Planet",
+        0
+    ],
+    "orbfit_name": "223",
+    "packed_permid": "00223",
+    "packed_primary_provisional_designation": "I82E00A",
+    "packed_secondary_provisional_designations": [
+        "I87B00A",
+        "J42E00L"
+    ],
+    "permid": "223",
+    "unpacked_primary_provisional_designation": "A882 EA",
+    "unpacked_secondary_provisional_designations": [
+        "1942 EL",
+        "A887 BA"
+    ]
+}

@@ -1,0 +1,24 @@
+{
+    "disambiguation_list": null,
+    "dual_status_info": null,
+    "found": 1,
+    "iau_designation": "(17035)",
+    "name": "Velichko",
+    "object_type": [
+        "Minor Planet",
+        0
+    ],
+    "orbfit_name": "17035",
+    "packed_permid": "17035",
+    "packed_primary_provisional_designation": "J99F10C",
+    "packed_secondary_provisional_designations": [
+        "J89T02D",
+        "J91E01X"
+    ],
+    "permid": "17035",
+    "unpacked_primary_provisional_designation": "1999 FC10",
+    "unpacked_secondary_provisional_designations": [
+        "1989 TD2",
+        "1991 EX1"
+    ]
+}
