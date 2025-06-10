@@ -64,7 +64,7 @@ def load_obsevatory_codes():
         dict: A dictionary mapping observatory codes to their names
     """
     logger.info("Loading observatory codes from MPC")
-    obs = MPC.get_observatory_codes()
+    obs = MPC.get_observatory_codes() # type: ignore
     d = dict(zip(obs['Code'].tolist(), 
              obs['Name'].tolist()))
     logger.debug(f"Loaded {len(d)} observatory codes")
@@ -72,11 +72,11 @@ def load_obsevatory_codes():
 
 # obs_codes = load_obsevatory_codes
 
-def get_id(asteroid_number):
+def get_id(asteroid_number: str) -> str | None:
     """
     Generate a unique ID for the asteroid based on its number.
     
-    Args:
+    Args
         asteroid_number (str): The asteroid number to generate an ID for
         
     Returns:
@@ -101,7 +101,7 @@ def get_id(asteroid_number):
         logger.error(f"Error getting IAU designation: {response.status_code} {response.content}")
     return iau_designation
 
-def fetch_mpc_data(asteroid_name):
+def fetch_mpc_data(asteroid_name: str):
     """
     Fetch observation data for a specific asteroid from the Minor Planet Center API.
     
@@ -122,7 +122,8 @@ def fetch_mpc_data(asteroid_name):
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in MPC database.")
     
-    filename = f"./db/mpc/{iau_designation}_mpc.csv.gz"
+    safe_designation = iau_designation.replace('/', '_')
+    filename = f"./db/mpc/{safe_designation}_mpc.csv.gz"
     if os.path.exists(filename):
         # If the file already exists, read it and return the data
         mpc_df = pd.read_csv(filename)
@@ -141,9 +142,9 @@ def fetch_mpc_data(asteroid_name):
         return mpc_data, iau_designation
     else:
         logger.error(f"Error fetching MPC data: {response.status_code} {response.content}")
-        return None
+        return None, iau_designation
 
-def fetch_miriade_data(asteroid_name, epochs=None):
+def fetch_miriade_data(asteroid_name: str, epochs=None):
     """
     Fetches data from the IMCCE Miriade web service.
     
@@ -175,7 +176,7 @@ def fetch_miriade_data(asteroid_name, epochs=None):
         logger.error(f"JSON parsing error with Miriade response: {e}")
         return None
 
-def fetch_ztf_data(asteroid_name):
+def fetch_ztf_data(asteroid_name: str):
     """
     Fetches ZTF data for a specific asteroid.
     
@@ -195,7 +196,9 @@ def fetch_ztf_data(asteroid_name):
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in ZTF database.")
     
-    filename = f"./db/ztf/{iau_designation}_ztf.csv.gz"
+    # Replace slashes with underscores in the filename to avoid directory issues
+    safe_designation = iau_designation.replace('/', '_')
+    filename = f"./db/ztf/{safe_designation}_ztf.csv.gz"
     if os.path.exists(filename):
         # If the file already exists, read it and return the data
         ztf_df = pd.read_csv(filename)
@@ -265,8 +268,12 @@ def fetch_ztf():
                 "status": "error", 
                 "message": f"No ZTF data found for asteroid {asteroid_name}"
             })
-        else:
+        elif isinstance(data, tuple) and len(data) == 2:
             data_obs, iau_designation = data
+        else:
+            # Handle the case when fetch_ztf_data returns a Response object
+            logger.warning(f"Unexpected return type from fetch_ztf_data: {type(data)}")
+            return data  # Return the response object directly
         logger.info(f"Successfully retrieved ZTF data for {asteroid_name} (ID: {iau_designation})")
         return jsonify({
             "status": "success", 
@@ -296,7 +303,8 @@ def fetch_miriade():
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in MPC database.")
 
-    filename_mpc = f"./db/mpc/{iau_designation}_mpc.csv.gz"
+    safe_designation = iau_designation.replace('/', '_')
+    filename_mpc = f"./db/mpc/{safe_designation}_mpc.csv.gz"
     if os.path.exists(filename_mpc):
         # If the file already exists, read it and return the data
         df_mpc = pd.read_csv(filename_mpc)
@@ -308,7 +316,7 @@ def fetch_miriade():
             "message": f"No MPC data found for asteroid {iau_designation}"
         })
     
-    filename_midiade = f"./db/miriade/{iau_designation}_miriade.csv.gz"
+    filename_midiade = f"./db/miriade/{safe_designation}_miriade.csv.gz"
     if os.path.exists(filename_midiade):
         # If the file already exists, read it and return the data
         miriade_df = pd.read_csv(filename_midiade)
@@ -328,7 +336,12 @@ def fetch_miriade():
     epochs = {'epochs':
                 ('epochs', '\n'.join(['%.6f' % epoch for epoch in epochs_jd]))}
     # Send the request to Miriade
-    logger.info(f"Fetching Miriade data for asteroid {asteroid_name} with {len(epochs_jd)} epochs")
+    if hasattr(epochs_jd, '__len__'):
+        length = len(epochs_jd) # type: ignore
+    else:
+        # Handle the case where obj doesn't have length
+        length = 0  # or some default behavior
+    logger.info(f"Fetching Miriade data for asteroid {asteroid_name} with {length} epochs")
     try:
         miriade_data = fetch_miriade_data(asteroid_name, epochs)
         if miriade_data and "data" in miriade_data:
@@ -354,7 +367,10 @@ def plot_observations():
     asteroid_id = request.form.get('asteroid_id')
     logger.info(f"Generating observations plot for asteroid {asteroid_id}")
     
-    ztf_filename = f"./db/ztf/{asteroid_id}_ztf.csv.gz"
+    # Replace slashes with underscores in the filename to avoid directory issues
+    safe_designation = asteroid_id.replace('/', '_') # type: ignore
+
+    ztf_filename = f"./db/ztf/{safe_designation}_ztf.csv.gz"
     df_ztf = None
     if os.path.exists(ztf_filename):
         df_ztf = pd.read_csv(ztf_filename)
@@ -366,7 +382,7 @@ def plot_observations():
         logger.info(f"ZTF data for {asteroid_id} not found, skipping ZTF plot")
     
     df_mpc = None
-    mpc_filename = f"./db/mpc/{asteroid_id}_mpc.csv.gz"
+    mpc_filename = f"./db/mpc/{safe_designation}_mpc.csv.gz"
     if os.path.exists(mpc_filename):
         df_mpc = pd.read_csv(mpc_filename)
         logger.info(f"MPC data for {asteroid_id} loaded successfully, shape: {df_mpc.shape}")
@@ -404,7 +420,7 @@ def plot_observations():
             fig.update_traces(
                 hovertemplate='Observatory: %{customdata[0]}<br>%{customdata[1]}<br>Time: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
             )
-            if show_ztf:
+            if show_ztf and df_ztf is not None:
                 logger.debug(f"Adding ZTF data to the plot for {asteroid_id}")
                 fig.add_scatter(
                     x=df_ztf['obstime'],
@@ -446,9 +462,13 @@ def plot_observations():
 @app.route('/plot_phase', methods=['POST'])
 def plot_phase():
     asteroid_id = request.form.get('asteroid_id')
-    mpc_filename = f"./db/mpc/{asteroid_id}_mpc.csv.gz"
-    miriade_filename = f"./db/miriade/{asteroid_id}_miriade.csv.gz"
-    ztf_filename = f"./db/ztf/{asteroid_id}_ztf.csv.gz"
+
+    # Replace slashes with underscores in the filename to avoid directory issues
+    safe_designation = asteroid_id.replace('/', '_') # type: ignore
+
+    mpc_filename = f"./db/mpc/{safe_designation}_mpc.csv.gz"
+    miriade_filename = f"./db/miriade/{safe_designation}_miriade.csv.gz"
+    ztf_filename = f"./db/ztf/{safe_designation}_ztf.csv.gz"
     
     logger.info(f"Generating phase plot for asteroid {asteroid_id}")
 

@@ -74,3 +74,76 @@
 2025-05-07 23:22:21,916 [INFO] app:43 - Ensuring database directories exist
 2025-05-07 23:22:21,917 [INFO] app:548 - Starting MPC Viewer application
 2025-05-07 23:22:21,917 [INFO] app:554 - Running in debug mode on http://127.0.0.1:5000/
+2025-06-10 18:30:20,605 [INFO] app:34 - MPC Viewer application starting up
+2025-06-10 18:30:20,606 [INFO] app:43 - Ensuring database directories exist
+2025-06-10 18:30:20,607 [INFO] app:557 - Starting MPC Viewer application
+2025-06-10 18:30:20,607 [INFO] app:563 - Running in debug mode on http://127.0.0.1:5000/
+2025-06-10 18:30:21,587 [INFO] app:34 - MPC Viewer application starting up
+2025-06-10 18:30:21,588 [INFO] app:43 - Ensuring database directories exist
+2025-06-10 18:30:21,589 [INFO] app:557 - Starting MPC Viewer application
+2025-06-10 18:30:21,589 [INFO] app:563 - Running in debug mode on http://127.0.0.1:5000/
+2025-06-10 18:30:41,419 [INFO] app:241 - Fetching MPC data for asteroid 311P
+2025-06-10 18:30:41,420 [INFO] app:85 - Getting IAU designation for asteroid 311P
+2025-06-10 18:30:41,877 [INFO] app:99 - Asteroid 311P has IAU designation P/2013 P5
+2025-06-10 18:30:41,878 [INFO] app:132 - Fetching MPC observations for P/2013 P5
+2025-06-10 18:30:42,794 [INFO] app:139 - Saving 269 observations for P/2013 P5 to ./db/mpc/P/2013 P5_mpc.csv.gz
+2025-06-10 18:30:42,797 [ERROR] app:252 - Error fetching MPC data for 311P: Cannot save file into a non-existent directory: 'db/mpc/P'
+2025-06-10 18:40:39,893 [INFO] app:34 - MPC Viewer application starting up
+2025-06-10 18:40:39,893 [INFO] app:43 - Ensuring database directories exist
+2025-06-10 18:40:39,894 [INFO] app:568 - Starting MPC Viewer application
+2025-06-10 18:40:39,894 [INFO] app:574 - Running in debug mode on http://127.0.0.1:5000/
+2025-06-10 18:40:43,728 [INFO] app:244 - Fetching MPC data for asteroid 311P
+2025-06-10 18:40:43,728 [INFO] app:85 - Getting IAU designation for asteroid 311P
+2025-06-10 18:40:44,172 [INFO] app:133 - Fetching MPC observations for P/2013 P5
+2025-06-10 18:40:45,094 [INFO] app:140 - Saving 269 observations for P/2013 P5 to ./db/mpc/P_2013 P5_mpc.csv.gz
+2025-06-10 18:40:45,110 [INFO] app:247 - Successfully retrieved MPC data for 311P (ID: P/2013 P5)
+2025-06-10 18:40:47,510 [INFO] app:368 - Generating observations plot for asteroid P/2013 P5
+2025-06-10 18:40:47,510 [INFO] app:382 - ZTF data for P/2013 P5 not found, skipping ZTF plot
+2025-06-10 18:40:47,517 [INFO] app:388 - MPC data for P/2013 P5 loaded successfully, shape: (269, 69)
+2025-06-10 18:40:47,517 [INFO] app:389 - Fetching observations for asteroid P/2013 P5 from ./db/mpc/P_2013 P5_mpc.csv.gz
+2025-06-10 18:40:47,525 [INFO] app:66 - Loading observatory codes from MPC
+2025-06-10 18:40:48,632 [INFO] app:449 - Successfully generated observations plot for P/2013 P5 with 269 data points
+2025-06-10 18:40:56,614 [INFO] app:295 - Fetching Miriade data for asteroid 311P
+2025-06-10 18:40:56,614 [INFO] app:85 - Getting IAU designation for asteroid 311P
+2025-06-10 18:40:56,926 [INFO] app:311 - MPC data for P/2013 P5 loaded successfully from cache, shape: (269, 69)
+2025-06-10 18:40:56,930 [INFO] app:344 - Fetching Miriade data for asteroid 311P with 269 epochs
+2025-06-10 18:40:56,931 [INFO] app:163 - Sending request to Miriade for 311P with 269 epochs
+2025-06-10 18:41:00,790 [ERROR] app:173 - Request error fetching Miriade data: 422 Client Error: Unprocessable Entity for url: https://ssp.imcce.fr/webservices/miriade/api/ephemcc.php?-name=311P&-rplane=1&-tcoor=5&-oscelem=astorb&-mime=json&-output=--jd
+2025-06-10 18:41:00,791 [ERROR] app:359 - Failed to get valid Miriade data for 311P
+2025-06-10 18:42:39,046 [INFO] app:262 - Fetching ZTF data for asteroid 311P
+2025-06-10 18:42:39,046 [INFO] app:85 - Getting IAU designation for asteroid 311P
+2025-06-10 18:42:39,367 [INFO] app:208 - Fetching ZTF data for P/2013 P5
+2025-06-10 18:42:39,558 [ERROR] app:230 - Error fetching ZTF data: 400 b"{'status': 'error', 'text': 'P/2013 P5 is not a valid name or number according to quaero.\\n'}"
+2025-06-10 18:42:39,558 [WARNING] app:275 - Unexpected return type from fetch_ztf_data: <class 'flask.wrappers.Response'>
+2025-06-10 18:44:22,954 [INFO] app:473 - Generating phase plot for asteroid P/2013 P5
+2025-06-10 18:44:22,954 [WARNING] app:483 - Missing data for phase plot of P/2013 P5: Miriade data not found
+2025-06-10 18:44:26,287 [INFO] app:295 - Fetching Miriade data for asteroid 311P
+2025-06-10 18:44:26,287 [INFO] app:85 - Getting IAU designation for asteroid 311P
+2025-06-10 18:44:26,623 [INFO] app:311 - MPC data for P/2013 P5 loaded successfully from cache, shape: (269, 69)
+2025-06-10 18:44:26,627 [INFO] app:344 - Fetching Miriade data for asteroid 311P with 269 epochs
+2025-06-10 18:44:26,627 [INFO] app:163 - Sending request to Miriade for 311P with 269 epochs
+2025-06-10 18:44:28,664 [ERROR] app:173 - Request error fetching Miriade data: 422 Client Error: Unprocessable Entity for url: https://ssp.imcce.fr/webservices/miriade/api/ephemcc.php?-name=311P&-rplane=1&-tcoor=5&-oscelem=astorb&-mime=json&-output=--jd
+2025-06-10 18:44:28,665 [ERROR] app:359 - Failed to get valid Miriade data for 311P
+2025-06-10 18:47:51,622 [INFO] app:244 - Fetching MPC data for asteroid 33931
+2025-06-10 18:47:51,623 [INFO] app:85 - Getting IAU designation for asteroid 33931
+2025-06-10 18:47:52,063 [INFO] app:130 - Data for 2000 LW28 loaded successfully from cache, shape: (2311, 69)
+2025-06-10 18:47:52,075 [INFO] app:247 - Successfully retrieved MPC data for 33931 (ID: 2000 LW28)
+2025-06-10 18:47:56,544 [INFO] app:295 - Fetching Miriade data for asteroid 33931
+2025-06-10 18:47:56,544 [INFO] app:85 - Getting IAU designation for asteroid 33931
+2025-06-10 18:47:56,861 [INFO] app:311 - MPC data for 2000 LW28 loaded successfully from cache, shape: (2311, 69)
+2025-06-10 18:47:56,869 [INFO] app:323 - Miriade data for 2000 LW28 loaded successfully from cache, shape: (2311, 11)
+2025-06-10 18:48:00,722 [INFO] app:262 - Fetching ZTF data for asteroid 33931
+2025-06-10 18:48:00,722 [INFO] app:85 - Getting IAU designation for asteroid 33931
+2025-06-10 18:48:01,017 [INFO] app:205 - ZTF data for 2000 LW28 loaded successfully from cache, shape: (130, 118)
+2025-06-10 18:48:01,020 [INFO] app:277 - Successfully retrieved ZTF data for 33931 (ID: 2000 LW28)
+2025-06-10 18:48:02,222 [INFO] app:368 - Generating observations plot for asteroid 2000 LW28
+2025-06-10 18:48:02,229 [INFO] app:377 - ZTF data for 2000 LW28 loaded successfully, shape: (130, 118)
+2025-06-10 18:48:02,247 [INFO] app:388 - MPC data for 2000 LW28 loaded successfully, shape: (2311, 69)
+2025-06-10 18:48:02,247 [INFO] app:389 - Fetching observations for asteroid 2000 LW28 from ./db/mpc/2000 LW28_mpc.csv.gz
+2025-06-10 18:48:02,252 [INFO] app:66 - Loading observatory codes from MPC
+2025-06-10 18:48:02,388 [INFO] app:449 - Successfully generated observations plot for 2000 LW28 with 2441 data points
+2025-06-10 18:48:03,623 [INFO] app:473 - Generating phase plot for asteroid 2000 LW28
+2025-06-10 18:48:03,650 [INFO] app:494 - Phase plot data loaded - MPC shape: (2311, 69), Miriade shape: (2311, 11)
+2025-06-10 18:48:03,656 [INFO] app:502 - Including ZTF data in phase plot, shape: (130, 118)
+2025-06-10 18:48:03,657 [INFO] app:66 - Loading observatory codes from MPC
+2025-06-10 18:48:03,780 [INFO] app:559 - Successfully generated phase plot for 2000 LW28 with 2311 data points

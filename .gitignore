@@ -53,3 +53,10 @@ instance/
 # Git
 .git/
 .gitignore
+
+# Logs
+*.log
+
+# Data files
+*.csv.gz
+*.json
