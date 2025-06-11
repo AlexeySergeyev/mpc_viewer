@@ -139,7 +139,8 @@ def fetch_mpc_data(asteroid_name: str):
         mpc_df = pd.DataFrame(mpc_data)
         logger.info(f"Saving {mpc_df.shape[0]} observations for {iau_designation} to {filename}")
         mpc_df.to_csv(filename, index=False)
-        return mpc_data, iau_designation
+        # Always return JSON to keep the response consistent with cached data
+        return mpc_df.to_json(), iau_designation
     else:
         logger.error(f"Error fetching MPC data: {response.status_code} {response.content}")
         return None, iau_designation
