@@ -58,9 +58,11 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-5. Open your browser and navigate to: `http://127.0.0.1:5000/`
+5. Open your browser and navigate to: [localhost:5000](http://127.0.0.1:5000/)
 
-6. The application is available at the AWS: `https://www.alexeysergeyev.online/`.
+## Deployment
+
+6. The application is also available online at: [alexeysergeyev.online](https://www.alexeysergeyev.online/)
 
 ## Usage
 
