@@ -1,10 +1,10 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory # type: ignore
 import requests
 import json
 import pandas as pd
 import os
-import plotly
-import plotly.express as px
+import plotly # type: ignore
+import plotly.express as px # type: ignore
 import numpy as np
 from astropy.time import Time
 from astroquery.mpc import MPC
