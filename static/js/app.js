@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Elements
-    const fetchForm = document.getElementById('fetchForm');
+    // const fetchForm = document.getElementById('fetchForm');
     const userInput = document.getElementById('userInput');
     const fetchStatus = document.getElementById('fetchStatus');
     
@@ -150,6 +150,17 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Fetch error:', error);
         });
     }
+
+    // Add Enter key handling for userInput
+    userInput.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            // Trigger the MPC load button when Enter is pressed
+            if (loadMPCButton && !loadMPCButton.disabled) {
+                loadMPCButton.click();
+            }
+        }
+    });
 
     // MPC button click event
     loadMPCButton.addEventListener('click', function() {

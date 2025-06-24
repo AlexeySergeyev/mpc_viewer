@@ -10,6 +10,8 @@ from astropy.time import Time
 from astroquery.mpc import MPC
 import logging
 from logging.handlers import RotatingFileHandler
+from typing import List
+import time
 
 
 app = Flask(__name__)
@@ -17,7 +19,8 @@ app = Flask(__name__)
 # Configure logging
 log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, 'app.log')
+log_name = os.path.join(log_dir, f'{time.strftime("%Y-%m-%d")}.log')
+log_file = os.path.join(log_dir, log_name)
 
 # Set up rotating file handler to avoid log files getting too large
 handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5)
@@ -25,7 +28,7 @@ handler.setFormatter(logging.Formatter(
     '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d - %(message)s'
 ))
 logger = logging.getLogger('mpc_viewer')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
 
 # Add handler to Flask's logger as well
@@ -72,33 +75,44 @@ def load_obsevatory_codes():
 
 # obs_codes = load_obsevatory_codes
 
-def get_id(asteroid_number: str) -> str | None:
+def get_id(asteroid_number: str, miriade=False) -> str | tuple[str, str] | None:
     """
     Generate a unique ID for the asteroid based on its number.
     
     Args
         asteroid_number (str): The asteroid number to generate an ID for
+        miriade (bool): If True, return a tuple (name, iau_designation)
         
     Returns:
-        str: The generated ID
+        str | tuple[str, str] | None: The generated ID or tuple of (name, iau_designation) if miriade=True
     """
     logger.info(f"Getting IAU designation for asteroid {asteroid_number}")
     # Use the asteroid number as the ID
     response = requests.get(MPC_API_IDENTIFIER_URL, data=str(asteroid_number))
     iau_designation = None
     if response.ok:
-        mpc_data = response.json()
-        iau_designation = mpc_data.get('unpacked_primary_provisional_designation')
-        logger.debug(f"Response data: {json.dumps(mpc_data, indent=4)}")
-        filename = f"./db/designation/{iau_designation}_mpc.json"
+        mpc_identification = response.json()
+        iau_designation = mpc_identification.get('unpacked_primary_provisional_designation')
+        logger.debug(f"Response data: {json.dumps(mpc_identification, indent=4)}")
+
+        safe_designation = iau_designation.replace('/', '_').replace(' ', '_')
+        filename = f"./db/designation/{safe_designation}.json"
         if not os.path.exists(filename):
+            logger.debug(f"Saving IAU designation to {filename}")
             # Save the response to a file
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             with open(filename, "w") as f:
                 json.dump(response.json(), f, indent=4)
             logger.info(f"Asteroid {asteroid_number} has IAU designation {iau_designation}")
+        else:
+            logger.info(f"IAU designation for {asteroid_number} already exists in {filename}")
     else:
         logger.error(f"Error getting IAU designation: {response.status_code} {response.content}")
+        return None
+    if miriade:
+        # If miriade is True, return the designation in a specific format
+        name = mpc_identification.get('name', iau_designation)
+        return name, iau_designation
     return iau_designation
 
 def fetch_mpc_data(asteroid_name: str):
@@ -122,7 +136,7 @@ def fetch_mpc_data(asteroid_name: str):
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in MPC database.")
     
-    safe_designation = iau_designation.replace('/', '_')
+    safe_designation = iau_designation.replace('/', '_').replace(' ', '_') # type: ignore
     filename = f"./db/mpc/{safe_designation}_mpc.csv.gz"
     if os.path.exists(filename):
         # If the file already exists, read it and return the data
@@ -145,29 +159,61 @@ def fetch_mpc_data(asteroid_name: str):
         logger.error(f"Error fetching MPC data: {response.status_code} {response.content}")
         return None, iau_designation
 
-def fetch_miriade_data(asteroid_name: str, epochs=None):
+def fetch_miriade_data(iau_designation: str | tuple[str, str], jd=None):
     """
     Fetches data from the IMCCE Miriade web service.
     
     Args:
-        params (dict): Dictionary of parameters to be sent in the request.
+        iau_designation (str | tuple[str, str]): The IAU designation of the asteroid or tuple of (name, iau_designation)
+        jd (list, optional): List of Julian Dates to fetch data for.
         
     Returns:
         dict: Parsed JSON response from the Miriade web service.
     """
+    # Handle case where iau_designation is a tuple (name, iau_designation)
+    if isinstance(iau_designation, tuple):
+        name, _ = iau_designation
+        miriade_name = name
+    else:
+        miriade_name = iau_designation
+        
     params = {
-        "-name": str(asteroid_name),
+        "-name": str(miriade_name),
         **init_miriade_params,
     }
+    CHUNK_SIZE = 4000
+    epoch_len = len(jd) if jd is not None else 0
     logger.debug(f"Miriade parameters: {json.dumps(params, indent=4)}")
     try:
-        logger.info(f"Sending request to Miriade for {asteroid_name} with {len(epochs['epochs'][1].split()) if epochs else 0} epochs")
-        response = requests.post(IMCCE_MIRIADE_URL, params=params, 
-            files=epochs, timeout=120)
-        logger.debug(f"Request URL: {response.url}")
-        response.raise_for_status()  # Raise an error for bad responses
-        miriade_data = response.json()
-        logger.info(f"Received Miriade data with {len(miriade_data.get('data', [])) if miriade_data else 0} records")
+        logger.info(f"Sending request to Miriade for {iau_designation} with {len(jd) if jd is not None else 0} epochs")
+        miriade_data = None
+        for chunk_jd in range(0, epoch_len, CHUNK_SIZE):
+            logger.info(f"Processing chunk {chunk_jd // CHUNK_SIZE + 1} epochs")
+            chunk_epochs = {
+                'epochs': (
+                    'epochs', 
+                    '\n'.join(['%.6f' % epoch for epoch in jd[chunk_jd:chunk_jd + CHUNK_SIZE]])
+                )
+            } if jd is not None else {}
+            logger.debug(f"Chunk epochs: {chunk_epochs['epochs'][1][:20]}... (total {len(chunk_epochs['epochs'])} epochs)")
+            response = requests.post(IMCCE_MIRIADE_URL, params=params, 
+            files=chunk_epochs, timeout=120)
+            logger.debug(f"Request URL: {response.url}")
+            response.raise_for_status()  # Raise an error for bad responses
+            logger.debug(f"Response status code: {response.status_code}")
+            
+            response_data = response.json()
+            if miriade_data is None:
+                # First chunk - initialize miriade_data
+                if 'data' not in response_data:
+                    logger.error(f"No data found for {iau_designation} in Miriade response")
+                    return None
+                miriade_data = response_data
+            else:
+                # Subsequent chunks - merge the new data with the existing data
+                if 'data' in response_data:
+                    miriade_data['data'].extend(response_data['data'])
+            logger.info(f"Received Miriade data with {len(miriade_data.get('data', [])) if miriade_data else 0} records")
         return miriade_data
     
     except requests.RequestException as e:
@@ -198,7 +244,7 @@ def fetch_ztf_data(asteroid_name: str):
         raise Exception(f"Asteroid {asteroid_name} not found in ZTF database.")
     
     # Replace slashes with underscores in the filename to avoid directory issues
-    safe_designation = iau_designation.replace('/', '_')
+    safe_designation = iau_designation.replace('/', '_').replace(' ', '_') # type: ignore
     filename = f"./db/ztf/{safe_designation}_ztf.csv.gz"
     if os.path.exists(filename):
         # If the file already exists, read it and return the data
@@ -296,7 +342,17 @@ def fetch_miriade():
     logger.info(f"Fetching Miriade data for asteroid {asteroid_name}")
 
     # Check asteroid id
-    iau_designation = get_id(asteroid_name)
+    id_result = get_id(asteroid_name, miriade=True)
+    
+    # Handle case where get_id returns None
+    if id_result is None:
+        logger.error(f"Asteroid {asteroid_name} not found in MPC database")
+        return jsonify({
+            "status": "error", 
+            "message": f"Asteroid {asteroid_name} not found in MPC database."
+        })
+    
+    name, iau_designation = id_result
 
     # MPC sometimes requires specific formatting (e.g., '00001' for Ceres)
     if iau_designation is None:
@@ -304,7 +360,8 @@ def fetch_miriade():
         # If the asteroid number is not found, return None or raise an error
         raise Exception(f"Asteroid {asteroid_name} not found in MPC database.")
 
-    safe_designation = iau_designation.replace('/', '_')
+    safe_designation = iau_designation.replace('/', '_').replace(' ', '_')
+    logger.debug(f"Safe designation for {iau_designation}: {safe_designation}")
     filename_mpc = f"./db/mpc/{safe_designation}_mpc.csv.gz"
     if os.path.exists(filename_mpc):
         # If the file already exists, read it and return the data
@@ -332,19 +389,16 @@ def fetch_miriade():
     # Get the epochs from the DataFrame
     epochs = df_mpc.loc[:, 'obstime'].to_list()
     # Convert to Julian Date
-    epochs_jd = Time(epochs, format='isot', scale='utc').jd
+    epochs_jd = np.array(Time(epochs, format='isot', scale='utc').jd)
     # Prepare the epochs for the request
-    epochs = {'epochs':
-                ('epochs', '\n'.join(['%.6f' % epoch for epoch in epochs_jd]))}
-    # Send the request to Miriade
-    if hasattr(epochs_jd, '__len__'):
-        length = len(epochs_jd) # type: ignore
-    else:
-        # Handle the case where obj doesn't have length
-        length = 0  # or some default behavior
+    # epochs = {'epochs':
+    #             ('epochs', '\n'.join(['%.6f' % epoch for epoch in epochs_jd]))}
+    # # Send the request to Miriade
+    
+    length = len(epochs_jd) # type: ignore
     logger.info(f"Fetching Miriade data for asteroid {asteroid_name} with {length} epochs")
     try:
-        miriade_data = fetch_miriade_data(asteroid_name, epochs)
+        miriade_data = fetch_miriade_data(name, epochs_jd)
         if miriade_data and "data" in miriade_data:
             miriade_df = pd.DataFrame(miriade_data["data"])
             logger.info(f"Saving {miriade_df.shape[0]} Miriade records for {iau_designation} to {filename_midiade}")
@@ -369,7 +423,7 @@ def plot_observations():
     logger.info(f"Generating observations plot for asteroid {asteroid_id}")
     
     # Replace slashes with underscores in the filename to avoid directory issues
-    safe_designation = asteroid_id.replace('/', '_') # type: ignore
+    safe_designation = asteroid_id.replace('/', '_').replace(' ', '_') # type: ignore
 
     ztf_filename = f"./db/ztf/{safe_designation}_ztf.csv.gz"
     df_ztf = None
@@ -423,12 +477,23 @@ def plot_observations():
             )
             if show_ztf and df_ztf is not None:
                 logger.debug(f"Adding ZTF data to the plot for {asteroid_id}")
+                # Define colors for ZTF filter IDs
+                ztf_g = df_ztf[df_ztf['i:fid'] == 1]  # g-band
+                ztf_r = df_ztf[df_ztf['i:fid'] == 2]  # r-band
                 fig.add_scatter(
-                    x=df_ztf['obstime'],
-                    y=df_ztf['i:magpsf'],
+                    x=ztf_r['obstime'],
+                    y=ztf_r['i:magpsf'],
                     mode='markers',
-                    marker=dict(size=4, color='black'),
-                    name='ZTF gr-band',
+                    marker=dict(size=4, color='red'),
+                    name='ZTF r',
+                    hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>%{x}<br>Mag: %{y:.2f}<extra></extra>'
+                )
+                fig.add_scatter(
+                    x=ztf_g['obstime'],
+                    y=ztf_g['i:magpsf'],
+                    mode='markers',
+                    marker=dict(size=4, color='green'),
+                    name='ZTF r',
                     hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>%{x}<br>Mag: %{y:.2f}<extra></extra>'
                 )
             
@@ -465,7 +530,7 @@ def plot_phase():
     asteroid_id = request.form.get('asteroid_id')
 
     # Replace slashes with underscores in the filename to avoid directory issues
-    safe_designation = asteroid_id.replace('/', '_') # type: ignore
+    safe_designation = asteroid_id.replace('/', '_').replace(' ', '_') # type: ignore
 
     mpc_filename = f"./db/mpc/{safe_designation}_mpc.csv.gz"
     miriade_filename = f"./db/miriade/{safe_designation}_miriade.csv.gz"
@@ -533,12 +598,27 @@ def plot_phase():
             )
     if ztf_df is not None:
         logger.debug(f"Adding ZTF data to the phase plot for {asteroid_id}")
+        # Define colors for ZTF filter IDs
+        ztf_g = ztf_df[ztf_df['i:fid'] == 1]  # g-band
+        ztf_r = ztf_df[ztf_df['i:fid'] == 2]  # r-band
+
+        # Add r-band (red)
         fig.add_scatter(
-            x=ztf_df['Phase'],
-            y=ztf_df['i:magpsf'] - ztf_df['mag_dist_corr'],
+            x=ztf_r['Phase'],
+            y=ztf_r['i:magpsf'] - ztf_r['mag_dist_corr'],
             mode='markers',
-            marker=dict(size=4, color='black'),
-            name='ZTF gr-band',
+            marker=dict(size=4, color='red'),
+            name='ZTF r',
+            hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Phase: %{x}<br>Mag: %{y:.2f}<extra></extra>'
+        )
+
+        # Add g-band (green)
+        fig.add_scatter(
+            x=ztf_g['Phase'],
+            y=ztf_g['i:magpsf'] - ztf_g['mag_dist_corr'],
+            mode='markers',
+            marker=dict(size=4, color='green'),
+            name='ZTF g',
             hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Phase: %{x}<br>Mag: %{y:.2f}<extra></extra>'
         )
     
@@ -569,7 +649,7 @@ if __name__ == '__main__':
     logger.info("Starting MPC Viewer application")
     
     # Uncomment the following line to run in production mode
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5001, debug=True)
     
     # Development mode with debug enabled
     logger.info("Running in debug mode on http://127.0.0.1:5000/")
