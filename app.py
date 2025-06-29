@@ -58,6 +58,20 @@ init_miriade_params = {
         "-output": "--jd",
         }
 
+def make_folders():
+    """
+    Create necessary folders for storing data.
+    """
+    folders = [
+        './db/mpc/',
+        './db/ztf/',
+        './db/miriade/',
+        './db/designation/'
+    ]
+    for folder in folders:
+        os.makedirs(folder, exist_ok=True)
+        logger.info(f"Ensured folder exists: {folder}")
+
 
 def load_obsevatory_codes():
     """
@@ -296,6 +310,11 @@ def fetch_ztf_data(asteroid_name: str):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    """Render the main index page."""
+    logger.info("Rendering index page")
+    # Ensure necessary folders exist
+    make_folders()
+    
     return render_template('index.html')
 
 @app.route('/fetch_mpc', methods=['POST'])
