@@ -28,6 +28,7 @@ handler.setFormatter(logging.Formatter(
     '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d - %(message)s'
 ))
 logger = logging.getLogger('mpc_viewer')
+logger.propagate = False  # Prevent log messages from being propagated to the root logger
 logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
 
@@ -424,15 +425,30 @@ def fetch_miriade():
     logger.debug(f"Epochs for Miriade request: {epochs[:5]}... (total {len(epochs)} epochs)")
     # Convert to Julian Date
     try:
-        epochs = Time(epochs, format='isot', scale='utc')
-        logger.debug(f"Converted epochs to Julian Date: {epochs.jd[:5]}... (total {len(epochs)} epochs)")
+        
+        nchunks = len(epochs) // 500 + 1
+        logger.debug(f"Total epochs: {len(epochs)}, splitting into {nchunks} chunks of 500 epochs each")
+        epochs_jd = np.array([])  # Initialize as empty array to avoid unbound error
+        # Convert epochs to Julian Date using astropy Time
+        for i in range(nchunks):
+            start = i * 500
+            end = min((i + 1) * 500, len(epochs))
+            logger.debug(f"Processing chunk {i + 1}/{nchunks}: epochs {start} to {end}")
+            epochs_time = Time(epochs[start:end], format='isot', scale='utc')
+            if i == 0:
+                epochs_jd = np.array(epochs_time.jd)
+            else:
+                epochs_jd = np.concatenate((epochs_jd, np.array(epochs_time.jd)))
+        # Limit to the first 500 epochs for Miriade request
+        # epochs = Time(epochs[:500], format='isot', scale='utc')
+        logger.debug(f"Converted epochs to Julian Date: {epochs_jd[:5]}... (total {len(epochs)} epochs)")
     except Exception as e:
         logger.error(f"Error converting epochs to Julian Date: {str(e)}")
         return jsonify({"status": "error", "message": f"Error converting epochs to Julian Date: {str(e)}"})
 
     # Convert to Julian Date
-    epochs_jd = np.array(epochs.jd)
-    logger.debug(f"Epochs for Miriade request: {epochs_jd[:5]}... (total {len(epochs_jd)} epochs)")
+    # epochs_jd = np.array(epochs.jd)
+    # logger.debug(f"Epochs for Miriade request: {epochs_jd[:5]}... (total {len(epochs_jd)} epochs)")
     
     # # Send the request to Miriade
     logger.info(f"Fetching Miriade data for asteroid {input_name} with {len(epochs_jd) } epochs")
