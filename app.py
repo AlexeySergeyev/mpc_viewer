@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import plotly # type: ignore
 import plotly.express as px # type: ignore
+import plotly.graph_objects as go # type: ignore
 import numpy as np
 from astropy.time import Time
 from astroquery.mpc import MPC
@@ -91,6 +92,125 @@ def load_obsevatory_codes():
              obs['Name'].tolist()))
     logger.debug(f"Loaded {len(d)} observatory codes")
     return d
+
+
+def get_band_color_map():
+    """
+    Get a color mapping for photometric bands that matches real filter colors.
+    
+    Returns:
+        dict: Mapping of band names to hex color codes
+    """
+    return {
+        # Standard photometric bands
+        'U': '#663399',    # Ultraviolet - purple
+        'B': '#4169E1',    # Blue
+        'V': '#32CD32',    # Visual/Green
+        'R': '#FF4500',    # Red
+        'I': '#8B0000',    # Infrared - dark red
+        
+        # Lowercase variants
+        'u': '#663399',
+        'b': '#4169E1',
+        'v': '#32CD32',
+        'r': '#FF4500',
+        'i': '#8B0000',
+        
+        # SDSS bands
+        'g': '#00CED1',    # g' - cyan/turquoise
+        'r': '#FF4500',    # r' - red-orange
+        'i': '#8B0000',    # i' - dark red
+        'z': '#4B0082',    # z' - indigo
+        
+        # SDSS with prime notation
+        "g'": '#00CED1',
+        "r'": '#FF4500',
+        "i'": '#8B0000',
+        "z'": '#4B0082',
+        
+        # Other common bands
+        'C': '#808080',    # Clear/unfiltered - gray
+        'o': '#FFA500',    # Orange
+        'w': '#D3D3D3',    # White/unfiltered - light gray
+        'G': '#32CD32',    # Gaia G band - green
+        
+        # Special cases
+        'Empty': '#A9A9A9',  # Dark gray for missing band data
+        'unknown': '#808080'  # Gray for unknown bands
+    }
+
+
+def create_band_legend_name(band, stn=None, obs_name=None):
+    """
+    Create a legend name combining band and observatory information.
+    Station (stn) is shown first, then band.
+    
+    Args:
+        band: Filter/band name
+        stn: Observatory code
+        obs_name: Observatory name
+        
+    Returns:
+        str: Formatted legend name with station first
+    """
+    if band and band != 'unknown':
+        if stn:
+            return f"{stn}: {band}-band"
+        else:
+            return f"{band}-band"
+    else:
+        if obs_name and obs_name != stn:
+            return f"{stn} - {obs_name}"
+        else:
+            return stn if stn else "Unknown"
+
+
+def get_marker_shapes():
+    """
+    Get a list of Plotly marker symbols for different observatory stations.
+    
+    Returns:
+        list: List of marker symbol names that work well together
+    """
+    return [
+        'circle',           # 0
+        'square',           # 1
+        'diamond',          # 2
+        'cross',            # 3
+        'x',                # 4
+        'triangle-up',      # 5
+        'triangle-down',    # 6
+        'triangle-left',    # 7
+        'triangle-right',   # 8
+        'pentagon',         # 9
+        'hexagon',          # 10
+        'star',             # 11
+        'hexagram',         # 12
+        # 'circle-open',      # 13
+        # 'square-open',      # 14
+        # 'diamond-open',     # 15
+    ]
+
+
+def assign_marker_shapes(stations):
+    """
+    Assign marker shapes to observatory stations.
+    
+    Args:
+        stations: List or Series of observatory station codes
+        
+    Returns:
+        dict: Mapping of station codes to marker symbols
+    """
+    unique_stations = sorted(list(set(stations)))
+    marker_shapes = get_marker_shapes()
+    
+    # Create mapping, cycling through marker shapes if needed
+    station_marker_map = {}
+    for i, station in enumerate(unique_stations):
+        station_marker_map[station] = marker_shapes[i % len(marker_shapes)]
+    
+    return station_marker_map
 
 # obs_codes = load_obsevatory_codes
 
@@ -568,52 +688,124 @@ def plot_observations():
             logger.debug(f"Magnitude values range: {df_mpc['mag'].min()} to {df_mpc['mag'].max()}")
             
             obs_codes = load_obsevatory_codes()
+            band_colors = get_band_color_map()
+            station_markers = assign_marker_shapes(df_mpc['stn'])
             
-            # Create plot with the actual data from DataFrame
-            fig = px.scatter(x=df_mpc['obstime'], 
-                y=df_mpc['mag'], 
-                color=df_mpc['stn'],
-                title=f'Magnitude observations for {asteroid_id}',
-                color_discrete_sequence=px.colors.qualitative.Set1,
-                custom_data=[df_mpc['stn'], [obs_codes.get(stn, stn) for stn in df_mpc['stn']]]  # Add custom data for hover
-                )
-
-            # Update the hover template after creating the figure
-            fig.update_traces(
-                hovertemplate='Observatory: %{customdata[0]}<br>%{customdata[1]}<br>Time: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
-            )
+            # Check if band column exists
+            has_band = 'band' in df_mpc.columns
+            
+            # Create figure with go.Figure for better control over markers
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            
+            if has_band:
+                # Fill missing band values with 'Empty' to keep all data points
+                df_plot = df_mpc.copy()
+                df_plot['band'] = df_plot['band'].fillna('Empty')
+                
+                # Group by station first, then band for proper legend ordering
+                grouped = df_plot.groupby(['stn', 'band'])
+                
+                for (stn, band), group in grouped:
+                    band_str = str(band).strip()
+                    color = band_colors.get(band_str, band_colors['unknown'])
+                    marker_symbol = station_markers.get(stn, 'circle')
+                    obs_name = obs_codes.get(stn, stn)
+                    legend_name = create_band_legend_name(band_str, stn, obs_name)
+                    
+                    fig.add_trace(go.Scatter(
+                        x=group['obstime'],
+                        y=group['mag'],
+                        mode='markers',
+                        name=legend_name,
+                        marker=dict(
+                            size=8,
+                            color=color,
+                            symbol=marker_symbol,
+                            opacity=0.7,
+                            line=dict(width=1, color='white')
+                        ),
+                        customdata=[[stn, obs_name, band_str]] * len(group),
+                        hovertemplate='Observatory: %{customdata[0]}<br>%{customdata[1]}<br>Band: %{customdata[2]}<br>Time: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
+                    ))
+            else:
+                # Fallback to station-based grouping only
+                grouped = df_mpc.groupby('stn')
+                colors = px.colors.qualitative.Set1
+                
+                for i, (stn, group) in enumerate(grouped):
+                    color = colors[i % len(colors)]
+                    marker_symbol = station_markers.get(stn, 'circle')
+                    obs_name = obs_codes.get(stn, stn)
+                    legend_name = f"{stn} - {obs_name}" if obs_name != stn else stn
+                    
+                    fig.add_trace(go.Scatter(
+                        x=group['obstime'],
+                        y=group['mag'],
+                        mode='markers',
+                        name=legend_name,
+                        marker=dict(
+                            size=8,
+                            color=color,
+                            symbol=marker_symbol,
+                            opacity=0.7,
+                            line=dict(width=1, color='white')
+                        ),
+                        customdata=[[stn, obs_name]] * len(group),
+                        hovertemplate='Observatory: %{customdata[0]}<br>%{customdata[1]}<br>Time: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
+                    ))
+            
             if show_ztf and df_ztf is not None:
                 logger.debug(f"Adding ZTF data to the plot for {asteroid_id}")
                 # Define colors for ZTF filter IDs
                 ztf_g = df_ztf[df_ztf['i:fid'] == 1]  # g-band
                 ztf_r = df_ztf[df_ztf['i:fid'] == 2]  # r-band
-                fig.add_scatter(
-                    x=ztf_r['obstime'],
-                    y=ztf_r['i:magpsf'],
-                    mode='markers',
-                    marker=dict(size=4, color='red'),
-                    name='ZTF r',
-                    hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>%{x}<br>Mag: %{y:.2f}<extra></extra>'
-                )
-                fig.add_scatter(
-                    x=ztf_g['obstime'],
-                    y=ztf_g['i:magpsf'],
-                    mode='markers',
-                    marker=dict(size=4, color='green'),
-                    name='ZTF r',
-                    hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>%{x}<br>Mag: %{y:.2f}<extra></extra>'
-                )
+                
+                # Use actual filter colors and star marker for ZTF
+                if len(ztf_r) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=ztf_r['obstime'],
+                        y=ztf_r['i:magpsf'],
+                        mode='markers',
+                        name='I41 ZTF: r-band',
+                        marker=dict(
+                            size=8,
+                            color=band_colors['r'],
+                            symbol='star',
+                            opacity=0.7,
+                            line=dict(width=1, color='white')
+                        ),
+                        customdata=[['I41', 'Palomar Mountain ZTF', 'r']] * len(ztf_r),
+                        hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Band: r<br>Time: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
+                    ))
+                
+                if len(ztf_g) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=ztf_g['obstime'],
+                        y=ztf_g['i:magpsf'],
+                        mode='markers',
+                        name='I41 ZTF: g-band',
+                        marker=dict(
+                            size=8,
+                            color=band_colors['g'],
+                            symbol='star',
+                            opacity=0.7,
+                            line=dict(width=1, color='white')
+                        ),
+                        customdata=[['I41', 'Palomar Mountain ZTF', 'g']] * len(ztf_g),
+                        hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Band: g<br>Time: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
+                    ))
             
-            # Invert y-axis (astronomical convention: brighter objects have lower magnitudes)
-            fig.update_layout(yaxis=dict(autorange="reversed"))
-            fig.update_traces(marker=dict(size=8, opacity=0.7))
+            # Invert y-axis and update layout
             fig.update_layout(
                 title=f'Magnitude observations for {asteroid_id}',
                 xaxis_title='Observation Time',
                 yaxis_title='Magnitude',
+                yaxis=dict(autorange="reversed"),
                 height=600,
-                legend_title_text='Observatory',
+                legend_title_text='Observatory: Filter' if has_band else 'Observatory',
                 template='plotly_white',
+                hovermode='closest'
             )
             
             # Convert to JSON for sending to the client
@@ -708,54 +900,105 @@ def plot_phase():
         })
     
     obs_codes = load_obsevatory_codes()
+    band_colors = get_band_color_map()
     
-    # Create phase plot
-    fig = px.scatter(df_merged, x='Phase', 
-                        y=df_merged['mag'] - df_merged['mag_dist_corr'], 
-                        color='stn',
-                        title=f'Phase-Magnitude Relation for {asteroid_id}',
-                        color_discrete_sequence=px.colors.qualitative.Set1,
-                        custom_data=[df_merged['stn'], [obs_codes.get(stn, stn) for stn in df_merged['stn']]]  # Add custom data for hover
-                )
-    # Update the hover template after creating the figure
-    fig.update_traces(
+    # Check if band column exists
+    has_band = 'band' in df_merged.columns
+    
+    # Assign marker shapes based on station
+    station_marker_map = assign_marker_shapes(df_merged['stn'].unique())
+    df_merged['marker_shape'] = df_merged['stn'].map(station_marker_map)
+    
+    # Create figure with graph_objects for full control over markers
+    fig = go.Figure()
+    
+    if has_band:
+        # Fill missing band values with 'Empty' to keep all data points
+        df_plot = df_merged.copy()
+        df_plot['band'] = df_plot['band'].fillna('Empty')
+        
+        # Group by station first, then band for proper legend ordering
+        for (stn, band), group in df_plot.groupby(['stn', 'band']):
+            band_str = str(band).strip()
+            color = band_colors.get(band_str, band_colors['unknown'])
+            marker_symbol = station_marker_map.get(stn, 'circle')
+            obs_name = obs_codes.get(stn, stn)
+            
+            # Create legend label with band and station
+            legend_name = create_band_legend_name(band_str, stn, obs_name)
+            
+            # Calculate reduced magnitude
+            reduced_mag = group['mag'] - group['mag_dist_corr']
+            
+            fig.add_trace(go.Scatter(
+                x=group['Phase'],
+                y=reduced_mag,
+                mode='markers',
+                marker=dict(size=8, color=color, symbol=marker_symbol, opacity=0.7),
+                name=legend_name,
+                customdata=list(zip(
+                    [stn] * len(group),
+                    [obs_name] * len(group),
+                    [band_str] * len(group)
+                )),
+                hovertemplate='Observatory: %{customdata[0]}<br>Name: %{customdata[1]}<br>Band: %{customdata[2]}<br>Phase: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
+            ))
+    else:
+        # Fallback to station-based grouping
+        for stn, group in df_merged.groupby('stn'):
+            marker_symbol = station_marker_map.get(stn, 'circle')
+            obs_name = obs_codes.get(stn, stn)
+            
+            # Calculate reduced magnitude
+            reduced_mag = group['mag'] - group['mag_dist_corr']
+            
+            fig.add_trace(go.Scatter(
+                x=group['Phase'],
+                y=reduced_mag,
+                mode='markers',
+                marker=dict(size=8, symbol=marker_symbol, opacity=0.7),
+                name=f'{stn} ({obs_name})',
+                customdata=list(zip(
+                    [stn] * len(group),
+                    [obs_name] * len(group)
+                )),
                 hovertemplate='Observatory: %{customdata[0]}<br>Name: %{customdata[1]}<br>Phase: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
-            )
+            ))
+    
     if ztf_df is not None:
         logger.debug(f"Adding ZTF data to the phase plot for {asteroid_id}")
         # Define colors for ZTF filter IDs
         ztf_g = ztf_df[ztf_df['i:fid'] == 1]  # g-band
         ztf_r = ztf_df[ztf_df['i:fid'] == 2]  # r-band
 
-        # Add r-band (red)
-        fig.add_scatter(
+        # Add r-band with realistic red color and star marker
+        fig.add_trace(go.Scatter(
             x=ztf_r['Phase'],
             y=ztf_r['i:magpsf'] - ztf_r['mag_dist_corr'],
             mode='markers',
-            marker=dict(size=4, color='red'),
-            name='ZTF r',
-            hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Phase: %{x}<br>Mag: %{y:.2f}<extra></extra>'
-        )
+            marker=dict(size=10, color=band_colors['r'], symbol='star', opacity=0.7),
+            name='r-band (I41 ZTF)',
+            hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Band: r<br>Phase: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
+        ))
 
-        # Add g-band (green)
-        fig.add_scatter(
+        # Add g-band with realistic green/cyan color and star marker
+        fig.add_trace(go.Scatter(
             x=ztf_g['Phase'],
             y=ztf_g['i:magpsf'] - ztf_g['mag_dist_corr'],
             mode='markers',
-            marker=dict(size=4, color='green'),
-            name='ZTF g',
-            hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Phase: %{x}<br>Mag: %{y:.2f}<extra></extra>'
-        )
+            marker=dict(size=10, color=band_colors['g'], symbol='star', opacity=0.7),
+            name='g-band (I41 ZTF)',
+            hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Band: g<br>Phase: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
+        ))
     
-    # Invert y-axis (astronomical convention: brighter objects have lower magnitudes)
-    fig.update_layout(yaxis=dict(autorange="reversed"))
-    fig.update_traces(marker=dict(size=8, opacity=0.7))
+    # Update layout with inverted y-axis and styling
     fig.update_layout(
         title=f'Phase-Magnitude Relation for {asteroid_id}',
         xaxis_title='Phase Angle (degrees)',
-        yaxis_title='Magnitude',
+        yaxis_title='Reduced Magnitude (H)',
+        yaxis=dict(autorange="reversed"),
         height=600,
-        legend_title_text='Observatory',
+        legend_title_text='Filter Band (Observatory)' if has_band else 'Observatory',
         template='plotly_white',
     )
     
