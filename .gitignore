@@ -62,3 +62,5 @@ instance/
 # Data files
 *.csv.gz
 *.json
+
+db/**
