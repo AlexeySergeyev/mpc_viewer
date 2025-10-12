@@ -354,14 +354,18 @@ def fetch_miriade_data(iau_name: str, jd=None):
         "-name": iau_name,
         **init_miriade_params,
     }
-    CHUNK_SIZE = 4000
+    # Reduced chunk size for faster processing and to avoid worker timeouts
+    CHUNK_SIZE = 2000  # Reduced from 4000 to process faster
     epoch_len = len(jd) if jd is not None else 0
     logger.debug(f"Miriade parameters: {json.dumps(params, indent=4)}")
     try:
         logger.info(f"Sending request to Miriade for {iau_name} with {len(jd) if jd is not None else 0} epochs")
         miriade_data = None
-        for chunk_jd in range(0, epoch_len, CHUNK_SIZE):
-            logger.info(f"Processing chunk {chunk_jd // CHUNK_SIZE + 1} epochs")
+        total_chunks = (epoch_len // CHUNK_SIZE) + (1 if epoch_len % CHUNK_SIZE > 0 else 0)
+        
+        for chunk_idx, chunk_jd in enumerate(range(0, epoch_len, CHUNK_SIZE)):
+            chunk_num = chunk_idx + 1
+            logger.info(f"Processing chunk {chunk_num}/{total_chunks} (epochs {chunk_jd} to {min(chunk_jd + CHUNK_SIZE, epoch_len)})")
             chunk_epochs = {
                 'epochs': (
                     'epochs', 
@@ -369,8 +373,10 @@ def fetch_miriade_data(iau_name: str, jd=None):
                 )
             } if jd is not None else {}
             logger.debug(f"Chunk epochs: {chunk_epochs['epochs'][1][:20]}... (total {len(chunk_epochs['epochs'])} epochs)")
+            
+            # Increased timeout to handle slow IMCCE API responses
             response = requests.post(IMCCE_MIRIADE_URL, params=params, 
-            files=chunk_epochs, timeout=120)
+            files=chunk_epochs, timeout=180)  # Increased timeout from 120 to 180 seconds
             logger.debug(f"Request URL: {response.url}")
             response.raise_for_status()  # Raise an error for bad responses
             logger.debug(f"Response status code: {response.status_code}")
@@ -676,7 +682,7 @@ def fetch_miriade():
             return jsonify({
                 "status": "success", 
                 "message": f"Data for asteroid {input_name} (ID: {iau_designation}) fetched successfully from Miriade",
-                "data": miriade_data,
+                "data": miriade_df.to_json(),  # Convert DataFrame to JSON, not raw miriade_data
                 "id": iau_designation
             })
         else:
