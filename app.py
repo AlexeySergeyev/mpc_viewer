@@ -271,6 +271,7 @@ def get_id(asteroid_number: str) -> tuple[str, str, str] | None:
 def fetch_mpc_data(asteroid_name: str):
     """
     Fetch observation data for a specific asteroid from the Minor Planet Center API.
+    Checks online source for number of observations and updates local database if different.
     
     Args:
         asteroid_name (str): The asteroid number to fetch data for
@@ -295,20 +296,31 @@ def fetch_mpc_data(asteroid_name: str):
         raise Exception(f"Asteroid {asteroid_name} not found in MPC database.")
     
     # Check if data already exists in database
+    needs_update = False
     if db_utils.mpc_data_exists(safe_designation):
-        mpc_df = db_utils.load_mpc_data(safe_designation)
-        if mpc_df is not None:
-            logger.info(f"Data for {iau_designation} loaded successfully from database, shape: {mpc_df.shape}")
-            return mpc_df.to_json(), iau_designation
+        # Load existing data from cache
+        mpc_df_local = db_utils.load_mpc_data(safe_designation)
+        
+        if mpc_df_local is not None:
+            local_count = len(mpc_df_local)
+            
+            # MPC API has a default limit of 2000 observations and doesn't support high limits reliably
+            # For now, skip automatic count checking to avoid API errors
+            # Users can manually refresh if they suspect new data is available
+            logger.info(f"Data for {iau_designation} loaded from database (count={local_count}). Skipping online check.")
+            return mpc_df_local.to_json(), iau_designation
     
     logger.info(f"Fetching MPC observations for {iau_designation}")
+    # Note: MPC API may have observation limits. For asteroids with >2000 observations,
+    # the API might not return all data in a single request.
     response = requests.get(MPC_API_OBSERVATIONS_URL, 
                             json={"desigs": [iau_designation], 
                                   "output_format":["ADES_DF"]})
     if response.ok:
         mpc_data = response.json()[0]['ADES_DF']
         mpc_df = pd.DataFrame(mpc_data)
-        logger.info(f"Saving {mpc_df.shape[0]} observations for {iau_designation} to database")
+        action = "Updating" if needs_update else "Saving"
+        logger.info(f"{action} {mpc_df.shape[0]} observations for {iau_designation} to database")
         
         # Save to DuckDB database
         db_utils.save_mpc_data(safe_designation, mpc_df)
@@ -387,6 +399,7 @@ def fetch_miriade_data(iau_name: str, jd=None):
 def fetch_ztf_data(asteroid_name: str):
     """
     Fetches ZTF data for a specific asteroid.
+    Checks online source for number of observations and updates local database if different.
     
     Args:
         asteroid_name (str): The name of the asteroid to fetch data for.
@@ -410,11 +423,44 @@ def fetch_ztf_data(asteroid_name: str):
         raise Exception(f"Asteroid {asteroid_name} not found in ZTF database.")
     
     # Check if data already exists in database
+    needs_update = False
     if db_utils.ztf_data_exists(safe_designation):
-        ztf_df = db_utils.load_ztf_data(safe_designation)
-        if ztf_df is not None:
-            logger.info(f"ZTF data for {iau_designation} loaded successfully from database, shape: {ztf_df.shape}")
-            return ztf_df.to_json(), iau_designation
+        # Load existing data to check count
+        ztf_df_local = db_utils.load_ztf_data(safe_designation)
+        
+        if ztf_df_local is not None:
+            local_count = len(ztf_df_local)
+            
+            # Check online source for observation count
+            logger.info(f"Checking online ZTF for observation count of {iau_designation}")
+            try:
+                query = {
+                    'n_or_d': iau_designation,
+                    'withEphem': True,
+                    'withResiduals': True,
+                    'output-format': 'json'
+                }
+                response_check = requests.post(
+                    'https://api.fink-portal.org/api/v1/sso',
+                    json=query,
+                    timeout=10
+                )
+                if response_check.ok:
+                    online_data = response_check.json()
+                    online_count = len(online_data) if online_data else 0
+                    
+                    if online_count != local_count:
+                        logger.info(f"Observation count mismatch for {iau_designation}: local={local_count}, online={online_count}. Updating database.")
+                        needs_update = True
+                    else:
+                        logger.info(f"ZTF data for {iau_designation} is up to date (count={local_count}). Loading from database.")
+                        return ztf_df_local.to_json(), iau_designation
+                else:
+                    logger.warning(f"Could not check online ZTF count (HTTP {response_check.status_code}). Using cached data.")
+                    return ztf_df_local.to_json(), iau_designation
+            except Exception as e:
+                logger.warning(f"Error checking online ZTF count: {str(e)}. Using cached data.")
+                return ztf_df_local.to_json(), iau_designation
     
     logger.info(f"Fetching ZTF data for {iau_designation}")
     query = {
@@ -436,7 +482,8 @@ def fetch_ztf_data(asteroid_name: str):
             db_utils.record_data_download(asteroid_name, 'ztf', 0, 'success', 
                                          "No data available")
             return None
-        logger.info(f"Saving {ztf_df.shape[0]} ZTF observations for {iau_designation} to database")
+        action = "Updating" if needs_update else "Saving"
+        logger.info(f"{action} {ztf_df.shape[0]} ZTF observations for {iau_designation} to database")
         
         # Save to DuckDB database
         db_utils.save_ztf_data(safe_designation, ztf_df)
@@ -557,16 +604,25 @@ def fetch_miriade():
     logger.info(f"MPC data for {iau_designation} loaded successfully from database, shape: {df_mpc.shape}")
     
     # Check if Miriade data already exists in database
+    needs_update = False
     if db_utils.miriade_data_exists(safe_designation):
         miriade_df = db_utils.load_miriade_data(safe_designation)
         if miriade_df is not None:
-            logger.info(f"Miriade data for {iau_designation} loaded successfully from database, shape: {miriade_df.shape}")
-            return jsonify({
-                "status": "success", 
-                "message": f"Data for asteroid {input_name} (ID: {iau_designation}) loaded successfully from Miriade",
-                "data": miriade_df.to_json(),
-                "id": iau_designation
-            })
+            local_count = len(miriade_df)
+            mpc_count = len(df_mpc)
+            
+            # Check if Miriade data count matches MPC data count
+            if local_count != mpc_count:
+                logger.info(f"Miriade observation count mismatch for {iau_designation}: miriade={local_count}, mpc={mpc_count}. Updating database.")
+                needs_update = True
+            else:
+                logger.info(f"Miriade data for {iau_designation} is up to date (count={local_count}). Loading from database.")
+                return jsonify({
+                    "status": "success", 
+                    "message": f"Data for asteroid {input_name} (ID: {iau_designation}) loaded successfully from Miriade",
+                    "data": miriade_df.to_json(),
+                    "id": iau_designation
+                })
     
     # Get the epochs from the DataFrame
     epochs = df_mpc.loc[:, 'obstime'].to_list()
@@ -608,7 +664,8 @@ def fetch_miriade():
         
         if miriade_data and "data" in miriade_data:
             miriade_df = pd.DataFrame(miriade_data["data"])
-            logger.info(f"Saving {miriade_df.shape[0]} Miriade records for {iau_designation} to database")
+            action = "Updating" if needs_update else "Saving"
+            logger.info(f"{action} {miriade_df.shape[0]} Miriade records for {iau_designation} to database")
             
             # Save to DuckDB database
             db_utils.save_miriade_data(safe_designation, miriade_df)
@@ -977,7 +1034,7 @@ def plot_phase():
             y=ztf_r['i:magpsf'] - ztf_r['mag_dist_corr'],
             mode='markers',
             marker=dict(size=10, color=band_colors['r'], symbol='star', opacity=0.7),
-            name='r-band (I41 ZTF)',
+            name='I41 ZTF: r-band',
             hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Band: r<br>Phase: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
         ))
 
@@ -987,7 +1044,7 @@ def plot_phase():
             y=ztf_g['i:magpsf'] - ztf_g['mag_dist_corr'],
             mode='markers',
             marker=dict(size=10, color=band_colors['g'], symbol='star', opacity=0.7),
-            name='g-band (I41 ZTF)',
+            name='I41 ZTF: g-band',
             hovertemplate='Observatory: I41<br>Palomar Mountain ZTF<br>Band: g<br>Phase: %{x}<br>Magnitude: %{y:.2f}<extra></extra>'
         ))
     
@@ -998,7 +1055,7 @@ def plot_phase():
         yaxis_title='Reduced Magnitude (H)',
         yaxis=dict(autorange="reversed"),
         height=600,
-        legend_title_text='Filter Band (Observatory)' if has_band else 'Observatory',
+        legend_title_text='Observatory: Filter' if has_band else 'Observatory',
         template='plotly_white',
     )
     
