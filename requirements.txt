@@ -4,3 +4,4 @@ flask
 plotly
 astropy
 astroquery
+duckdb

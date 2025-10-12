@@ -15,6 +15,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const plotButton = document.getElementById('plotButton');
     const plotPhaseButton = document.getElementById('plotPhaseButton');
     const plotPhaseSpinner = document.getElementById('plotPhaseSpinner');
+    
+    // Export elements
+    const exportDropdown = document.getElementById('exportDropdown');
+    const exportAll = document.getElementById('exportAll');
+    const exportMpc = document.getElementById('exportMpc');
+    const exportMiriade = document.getElementById('exportMiriade');
+    const exportZtf = document.getElementById('exportZtf');
 
     const plotForm = document.getElementById('plotForm');
     const plotSpinner = document.getElementById('plotSpinner');
@@ -75,6 +82,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Enable the plot buttons
                     plotButton.disabled = false;
                     plotPhaseButton.disabled = false;
+                    // Enable the export dropdown
+                    exportDropdown.disabled = false;
                 }
             });
         })
@@ -186,5 +195,82 @@ document.addEventListener('DOMContentLoaded', function() {
     // Plot Phase button click event
     plotPhaseButton.addEventListener('click', function() {
         handlePlotRequest('/plot_phase', plotPhaseSpinner, 'Phase');
+    });
+    
+    // Function to handle data export
+    function handleExport(dataSource) {
+        const asteroidId = asteroidIdInput.value.trim();
+        if (!asteroidId) {
+            showMessage(plotStatus, 'Please load asteroid data first', 'warning');
+            return;
+        }
+        
+        showMessage(plotStatus, `Preparing ${dataSource} data export...`, 'info');
+        
+        fetch('/export_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                asteroid_id: asteroidId,
+                data_source: dataSource
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.message || `HTTP error! Status: ${response.status}`);
+                });
+            }
+            // Get filename from Content-Disposition header if available
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `${asteroidId}_${dataSource}.csv`;
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1].replace(/['"]/g, '');
+                }
+            }
+            return response.blob().then(blob => ({ blob, filename }));
+        })
+        .then(({ blob, filename }) => {
+            // Create a download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showMessage(plotStatus, `${dataSource.toUpperCase()} data exported successfully`, 'success');
+        })
+        .catch(error => {
+            showMessage(plotStatus, `Export error: ${error.message}`, 'danger');
+            console.error('Export error:', error);
+        });
+    }
+    
+    // Export event listeners
+    exportAll.addEventListener('click', function(e) {
+        e.preventDefault();
+        handleExport('all');
+    });
+    
+    exportMpc.addEventListener('click', function(e) {
+        e.preventDefault();
+        handleExport('mpc');
+    });
+    
+    exportMiriade.addEventListener('click', function(e) {
+        e.preventDefault();
+        handleExport('miriade');
+    });
+    
+    exportZtf.addEventListener('click', function(e) {
+        e.preventDefault();
+        handleExport('ztf');
     });
 });

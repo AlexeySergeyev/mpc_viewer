@@ -61,7 +61,7 @@
                                 <label for="asteroidId" class="form-label">Asteroid ID:</label>
                                 <input type="text" class="form-control" id="asteroidId" placeholder="ID will appear after loading data" readonly>
                             </div>
-                            <div class="d-flex gap-2">
+                            <div class="d-flex gap-2 mb-2">
                                 <button type="submit" class="btn btn-success" disabled id="plotButton">
                                     <span id="plotSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                     Plot Observations
@@ -70,6 +70,20 @@
                                     <span id="plotPhaseSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                     Plot Phase
                                 </button>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <div class="dropdown">
+                                    <button class="btn btn-secondary dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false" disabled>
+                                        Export Data
+                                    </button>
+                                    <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                                        <li><a class="dropdown-item" href="#" id="exportAll">All Data (ZIP)</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="#" id="exportMpc">MPC Data (CSV)</a></li>
+                                        <li><a class="dropdown-item" href="#" id="exportMiriade">Miriade Data (CSV)</a></li>
+                                        <li><a class="dropdown-item" href="#" id="exportZtf">ZTF Data (CSV)</a></li>
+                                    </ul>
+                                </div>
                             </div>
                         </form>
                         <div id="plotStatus" class="status-message alert mt-3" style="display: none;"></div>
