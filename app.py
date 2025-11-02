@@ -55,7 +55,8 @@ logger.info('All DuckDB databases initialized')
 # Constants for API URLs
 MPC_API_IDENTIFIER_URL = "https://data.minorplanetcenter.net/api/query-identifier"
 MPC_API_OBSERVATIONS_URL = "https://data.minorplanetcenter.net/api/get-obs"
-IMCCE_MIRIADE_URL = "https://ssp.imcce.fr/webservices/miriade/api/ephemcc.php"
+# IMCCE_MIRIADE_URL = "https://ssp.imcce.fr/webservices/miriade/api/ephemcc.php"
+IMCCE_MIRIADE_URL = "http://vo.imcce.fr/webservices/miriade/ephemcc_query.php"
 
 init_miriade_params = {
         '-rplane': 1,
@@ -103,30 +104,32 @@ def get_band_color_map():
     """
     return {
         # Standard photometric bands
-        'U': '#663399',    # Ultraviolet - purple
-        'B': '#4169E1',    # Blue
+        'U': '#5E3C99',    # Ultraviolet - purple
+        'B': '#56B4E9',    # Blue
         'V': '#32CD32',    # Visual/Green
-        'R': '#FF4500',    # Red
-        'I': '#8B0000',    # Infrared - dark red
+        'R': '#CC0000',    # Red
+        'I': '#D95F02',    # Infrared - dark red
         
         # Lowercase variants
-        'u': '#663399',
-        'b': '#4169E1',
+        'u': '#5E3C99',
+        'b': '#56B4E9',
         'v': '#32CD32',
-        'r': '#FF4500',
-        'i': '#8B0000',
-        
+        'g': '#1B9E77',
+        'r': '#CC0000',
+        'i': '#D95F02',
+        'z': '#333333',
+
         # SDSS bands
-        'g': '#00CED1',    # g' - cyan/turquoise
-        'r': '#FF4500',    # r' - red-orange
-        'i': '#8B0000',    # i' - dark red
-        'z': '#4B0082',    # z' - indigo
+        # 'g': '#00CED1',    # g' - cyan/turquoise
+        # 'r': '#D55E00',    # r' - red-orange
+        # 'i': '#8B0000',    # i' - dark red
+        # 'z': '#4B0082',    # z' - indigo
         
         # SDSS with prime notation
-        "g'": '#00CED1',
-        "r'": '#FF4500',
-        "i'": '#8B0000',
-        "z'": '#4B0082',
+        # "g'": '#00CED1',
+        # "r'": '#FF4500',
+        # "i'": '#8B0000',
+        # "z'": '#4B0082',
         
         # Other common bands
         'C': '#808080',    # Clear/unfiltered - gray
@@ -135,8 +138,8 @@ def get_band_color_map():
         'G': '#32CD32',    # Gaia G band - green
         
         # Special cases
-        'Empty': '#A9A9A9',  # Dark gray for missing band data
-        'unknown': '#808080'  # Gray for unknown bands
+        'Empty': '#777777',  # Dark gray for missing band data
+        'unknown': '#BBBBBB'  # Gray for unknown bands
     }
 
 
@@ -212,7 +215,6 @@ def assign_marker_shapes(stations):
     
     return station_marker_map
 
-# obs_codes = load_obsevatory_codes
 
 def get_id(asteroid_number: str) -> tuple[str, str, str] | None:
     """
@@ -267,6 +269,7 @@ def get_id(asteroid_number: str) -> tuple[str, str, str] | None:
         return None
     
     return iau_designation, safe_designation, iau_name
+
 
 def fetch_mpc_data(asteroid_name: str):
     """
@@ -336,6 +339,7 @@ def fetch_mpc_data(asteroid_name: str):
                                       f"HTTP {response.status_code}")
         return None, iau_designation
 
+
 def fetch_miriade_data(iau_name: str, jd=None):
     """
     Fetches data from the IMCCE Miriade web service.
@@ -350,10 +354,16 @@ def fetch_miriade_data(iau_name: str, jd=None):
     # Handle case where iau_designation is a tuple (name, iau_designation)
     
     # "-name": urllib.parse.quote(iau_designation),
-    params = {
-        "-name": iau_name,
-        **init_miriade_params,
-    }
+    if str(iau_name).startswith('C') or str(iau_name).startswith('P'):
+        params = {
+            "-name": f"c:{iau_name.replace(' ', '_')}",
+            **init_miriade_params,
+        }
+    else:
+        params = {
+            "-name": iau_name,
+            **init_miriade_params,
+        }
     # Reduced chunk size for faster processing and to avoid worker timeouts
     CHUNK_SIZE = 2000  # Reduced from 4000 to process faster
     epoch_len = len(jd) if jd is not None else 0
@@ -401,6 +411,7 @@ def fetch_miriade_data(iau_name: str, jd=None):
     except ValueError as e:
         logger.error(f"JSON parsing error with Miriade response: {e}")
         return None
+
 
 def fetch_ztf_data(asteroid_name: str):
     """
@@ -507,6 +518,7 @@ def fetch_ztf_data(asteroid_name: str):
             "message": f"Error fetching data for {iau_designation}: {response.status_code} {response.content}"
         })
 
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Render the main index page."""
@@ -515,6 +527,7 @@ def index():
     make_folders()
     
     return render_template('index.html')
+
 
 @app.route('/fetch_mpc', methods=['POST'])
 def fetch_asteroid():
@@ -533,7 +546,8 @@ def fetch_asteroid():
     except Exception as e:
         logger.error(f"Error fetching MPC data for {asteroid_name}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
-    
+
+
 @app.route('/fetch_ztf', methods=['POST'])
 def fetch_ztf():
     data = request.get_json()
@@ -564,6 +578,7 @@ def fetch_ztf():
         logger.error(f"Error fetching ZTF data for {asteroid_name}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
 
+
 @app.route('/fetch_miriade', methods=['POST'])
 def fetch_miriade():
     """
@@ -572,9 +587,13 @@ def fetch_miriade():
     data = request.get_json()
     input_name = data.get('userInput', '')
     logger.info(f"Fetching Miriade data for asteroid {input_name}")
+    print("Input name:", input_name)
+    # if "C/" in input_name:
+    #     input_name = f"c:/{input_name}"
 
     # Check asteroid id
     id = get_id(input_name)
+    print("ID:", id)
     iau_designation = None
     safe_designation = None
     iau_name = None
@@ -670,6 +689,14 @@ def fetch_miriade():
         
         if miriade_data and "data" in miriade_data:
             miriade_df = pd.DataFrame(miriade_data["data"])
+            # logger.info(f"Columns in Miriade data: {miriade_df.columns.tolist()}")
+            # Rename columns to set Upper CamelCase
+            if 'dobs' in miriade_df.columns:
+                miriade_df = miriade_df.rename(columns={'dobs': 'Dobs', 'dhelio': 'Dhelio', 
+                                                        'vmag': 'VMag', 'epoch': 'Date',
+                                                        'phase': 'Phase'})
+            # miriade_df.columns = [col[0].upper() + col[1:] for col in miriade_df.columns]
+             # Ensure that 'Jd' column is present
             action = "Updating" if needs_update else "Saving"
             logger.info(f"{action} {miriade_df.shape[0]} Miriade records for {iau_designation} to database")
             
@@ -694,6 +721,7 @@ def fetch_miriade():
         logger.error(f"Error fetching Miriade data for {input_name}: {str(e)}")
         db_utils.record_data_download(input_name, 'miriade', 0, 'error', str(e))
         return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route('/plot_observations', methods=['POST'])
 def plot_observations():
@@ -887,6 +915,7 @@ def plot_observations():
             "message": f"No data found for asteroid {asteroid_id}"
         })
 
+
 @app.route('/plot_phase', methods=['POST'])
 def plot_phase():
     asteroid_id = request.form.get('asteroid_id')
@@ -1075,6 +1104,7 @@ def plot_phase():
         "count": len(df_merged)
     })
 
+
 @app.route('/export_data', methods=['POST'])
 def export_data():
     """
@@ -1210,6 +1240,7 @@ def export_data():
             "status": "error",
             "message": f"Error exporting data: {str(e)}"
         }), 500
+
 
 if __name__ == '__main__':
     # Final setup for logging
