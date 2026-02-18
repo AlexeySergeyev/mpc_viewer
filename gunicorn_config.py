@@ -7,8 +7,11 @@ bind = "0.0.0.0:5000"
 backlog = 2048
 
 # Worker processes
-workers = multiprocessing.cpu_count() * 2 + 1
-worker_class = "sync"
+# DuckDB file backends are not friendly to multi-process write access.
+# Use a single process with threads to avoid startup/runtime DB lock conflicts.
+workers = 1
+worker_class = "gthread"
+threads = 2 # Adjust based on expected concurrency and workload
 worker_connections = 1000
 
 # Timeout - CRITICAL: Set to 10 minutes to handle long Miriade requests

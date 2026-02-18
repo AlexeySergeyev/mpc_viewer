@@ -5,3 +5,4 @@ plotly
 astropy
 astroquery
 duckdb
+gunicorn
