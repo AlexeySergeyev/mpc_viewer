@@ -118,6 +118,7 @@ def get_band_color_map():
         'r': '#CC0000',
         'i': '#D95F02',
         'z': '#333333',
+        'c': '#00FFFF',    # cyan
 
         # SDSS bands
         # 'g': '#00CED1',    # g' - cyan/turquoise
@@ -799,7 +800,7 @@ def plot_observations():
                 
                 for (stn, band), group in grouped:
                     band_str = str(band).strip()
-                    color = band_colors.get(band_str, band_colors['unknown'])
+                    color = band_colors.get(band_str[-1:], band_colors['unknown'])
                     marker_symbol = station_markers.get(stn, 'circle')
                     obs_name = obs_codes.get(stn, stn)
                     legend_name = create_band_legend_name(band_str, stn, obs_name)
@@ -1012,7 +1013,7 @@ def plot_phase():
         # Group by station first, then band for proper legend ordering
         for (stn, band), group in df_plot.groupby(['stn', 'band']):
             band_str = str(band).strip()
-            color = band_colors.get(band_str, band_colors['unknown'])
+            color = band_colors.get(band_str[-1:], band_colors['unknown'])
             marker_symbol = station_marker_map.get(stn, 'circle')
             obs_name = obs_codes.get(stn, stn)
             
