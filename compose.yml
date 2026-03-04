@@ -13,6 +13,14 @@ services:
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
+      GUNICORN_LOG_LEVEL: "info"
+      GUNICORN_ACCESS_LOG: "-"
+      GUNICORN_ERROR_LOG: "-"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     healthcheck:
       test:
@@ -20,7 +28,7 @@ services:
           "CMD",
           "python3",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=30)",
         ]
       interval: 30s
       timeout: 10s

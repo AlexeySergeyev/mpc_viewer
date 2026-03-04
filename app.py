@@ -11,6 +11,7 @@ from astropy.time import Time
 from astroquery.mpc import MPC
 import logging
 from logging.handlers import RotatingFileHandler
+import sys
 import time
 import urllib.parse
 import db_utils
@@ -21,21 +22,27 @@ app = Flask(__name__)
 # Configure logging
 log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 os.makedirs(log_dir, exist_ok=True)
-log_name = os.path.join(log_dir, f'{time.strftime("%Y-%m-%d")}.log')
-log_file = os.path.join(log_dir, log_name)
+log_file = os.path.join(log_dir, f'{time.strftime("%Y-%m-%d")}.log')
+log_format = '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d - %(message)s'
+formatter = logging.Formatter(log_format)
 
-# Set up rotating file handler to avoid log files getting too large
-handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5)
-handler.setFormatter(logging.Formatter(
-    '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d - %(message)s'
-))
+# Write logs to file (persistent) and stderr (visible in docker compose logs)
+file_handler = RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=5)
+file_handler.setFormatter(formatter)
+stream_handler = logging.StreamHandler(sys.stderr)
+stream_handler.setFormatter(formatter)
+
 logger = logging.getLogger('mpc_viewer')
 logger.propagate = False  # Prevent log messages from being propagated to the root logger
 logger.setLevel(logging.DEBUG)
-logger.addHandler(handler)
+if not logger.handlers:
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
 
-# Add handler to Flask's logger as well
-app.logger.addHandler(handler)
+# Add the same handlers to Flask's logger
+app.logger.handlers.clear()
+for logger_handler in logger.handlers:
+    app.logger.addHandler(logger_handler)
 app.logger.setLevel(logging.INFO)
 app.logger.info('MPC Viewer application starting up')
 
@@ -55,10 +62,13 @@ logger.info('All DuckDB databases initialized')
 # Constants for API URLs
 MPC_API_IDENTIFIER_URL = "https://data.minorplanetcenter.net/api/query-identifier"
 MPC_API_OBSERVATIONS_URL = "https://data.minorplanetcenter.net/api/get-obs"
-# IMCCE_MIRIADE_URL = "https://ssp.imcce.fr/webservices/miriade/api/ephemcc.php"
-IMCCE_MIRIADE_URL = "http://vo.imcce.fr/webservices/miriade/ephemcc_query.php"
+IMCCE_MIRIADE_URL = "https://ssp.imcce.fr/webservices/miriade/api/ephemcc.php"
 
 init_miriade_params = {
+        "-observer": "500",
+        "-tscale": "UTC",
+        "-theory": "INPOP",
+        "-teph": 1,
         '-rplane': 1,
         '-tcoor': 5,
         "-oscelem": "astorb",
@@ -341,77 +351,189 @@ def fetch_mpc_data(asteroid_name: str):
         return None, iau_designation
 
 
-def fetch_miriade_data(iau_name: str, jd=None):
+def build_miriade_target_candidates(
+    input_name: str,
+    iau_designation: str | None,
+    iau_name: str | None,
+) -> list[str]:
+    """
+    Build ordered, deduplicated target candidates for Miriade.
+
+    Priority:
+    1) IAU name
+    2) User input
+    3) IAU designation
+    """
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    for token in (iau_name, input_name, iau_designation):
+        if token is None:
+            continue
+        normalized = str(token).strip()
+        if not normalized:
+            continue
+
+        for candidate in (f"a:{normalized}", normalized):
+            if candidate not in seen:
+                seen.add(candidate)
+                candidates.append(candidate)
+
+    return candidates
+
+
+def _miriade_not_found_message(message: str) -> bool:
+    lowered = message.lower()
+    return "object" in lowered and "not found" in lowered
+
+
+def fetch_miriade_data(
+    target_candidates: list[str],
+    jd: list[float],
+) -> tuple[dict | None, str | None, str | None]:
     """
     Fetches data from the IMCCE Miriade web service.
     
     Args:
-        iau_designation (str | tuple[str, str]): The IAU designation of the asteroid or tuple of (name, iau_designation)
-        jd (list, optional): List of Julian Dates to fetch data for.
+        target_candidates: Ordered candidates for Miriade -name parameter.
+        jd: List of Julian Dates.
         
     Returns:
-        dict: Parsed JSON response from the Miriade web service.
+        tuple:
+            - Parsed JSON response from the Miriade web service or None
+            - Error message or None
+            - Resolved target candidate or None
     """
-    # Handle case where iau_designation is a tuple (name, iau_designation)
-    
-    # "-name": urllib.parse.quote(iau_designation),
-    if str(iau_name).startswith('C') or str(iau_name).startswith('P'):
+    if not target_candidates:
+        return None, "No Miriade target candidates were provided", None
+
+    if not jd:
+        return None, "No epochs were provided for Miriade request", None
+
+    CHUNK_SIZE = 1000
+    epoch_len = len(jd)
+    total_chunks = (epoch_len // CHUNK_SIZE) + (1 if epoch_len % CHUNK_SIZE > 0 else 0)
+    last_candidate_error: str | None = None
+
+    for target_candidate in target_candidates:
         params = {
-            "-name": f"c:{iau_name.replace(' ', '_')}",
+            "-name": target_candidate,
             **init_miriade_params,
         }
-    else:
-        params = {
-            "-name": iau_name,
-            **init_miriade_params,
-        }
-    # Reduced chunk size for faster processing and to avoid worker timeouts
-    CHUNK_SIZE = 2000  # Reduced from 4000 to process faster
-    epoch_len = len(jd) if jd is not None else 0
-    logger.debug(f"Miriade parameters: {json.dumps(params, indent=4)}")
-    try:
-        logger.info(f"Sending request to Miriade for {iau_name} with {len(jd) if jd is not None else 0} epochs")
-        miriade_data = None
-        total_chunks = (epoch_len // CHUNK_SIZE) + (1 if epoch_len % CHUNK_SIZE > 0 else 0)
-        
-        for chunk_idx, chunk_jd in enumerate(range(0, epoch_len, CHUNK_SIZE)):
+        logger.info(
+            f"Trying Miriade target candidate '{target_candidate}' with {epoch_len} epochs"
+        )
+        logger.debug(f"Miriade parameters: {json.dumps(params, indent=4)}")
+
+        miriade_data: dict | None = None
+        candidate_failed = False
+        candidate_error: str | None = None
+
+        for chunk_idx, chunk_start in enumerate(range(0, epoch_len, CHUNK_SIZE)):
             chunk_num = chunk_idx + 1
-            logger.info(f"Processing chunk {chunk_num}/{total_chunks} (epochs {chunk_jd} to {min(chunk_jd + CHUNK_SIZE, epoch_len)})")
+            chunk_end = min(chunk_start + CHUNK_SIZE, epoch_len)
+            chunk_values = jd[chunk_start:chunk_end]
+            chunk_payload = "\n".join([f"{epoch:.6f}" for epoch in chunk_values])
             chunk_epochs = {
-                'epochs': (
-                    'epochs', 
-                    '\n'.join(['%.6f' % epoch for epoch in jd[chunk_jd:chunk_jd + CHUNK_SIZE]])
+                "epochs": ("epochs.txt", chunk_payload, "text/plain")
+            }
+
+            logger.info(
+                f"Processing Miriade chunk {chunk_num}/{total_chunks} for '{target_candidate}' "
+                f"(epochs index {chunk_start} to {chunk_end})"
+            )
+            logger.debug(
+                f"Chunk {chunk_num} contains {len(chunk_values)} epochs; "
+                f"first={chunk_values[0] if chunk_values else 'n/a'}"
+            )
+
+            try:
+                response = requests.post(
+                    IMCCE_MIRIADE_URL,
+                    params=params,
+                    files=chunk_epochs,
+                    timeout=180,
                 )
-            } if jd is not None else {}
-            logger.debug(f"Chunk epochs: {chunk_epochs['epochs'][1][:20]}... (total {len(chunk_epochs['epochs'])} epochs)")
-            
-            # Increased timeout to handle slow IMCCE API responses
-            response = requests.post(IMCCE_MIRIADE_URL, params=params, 
-            files=chunk_epochs, timeout=180)  # Increased timeout from 120 to 180 seconds
+            except requests.RequestException as e:
+                message = (
+                    f"Miriade operational error while requesting candidate "
+                    f"'{target_candidate}': {str(e)}"
+                )
+                logger.exception(message)
+                return None, message, None
+
             logger.debug(f"Request URL: {response.url}")
-            response.raise_for_status()  # Raise an error for bad responses
             logger.debug(f"Response status code: {response.status_code}")
-            
-            response_data = response.json()
+
+            if response.status_code >= 500:
+                message = (
+                    f"Miriade HTTP {response.status_code} for candidate '{target_candidate}': "
+                    f"{response.text[:300]}"
+                )
+                logger.error(message)
+                return None, message, None
+
+            try:
+                response_data = response.json()
+            except ValueError as e:
+                message = (
+                    f"Invalid JSON from Miriade for candidate '{target_candidate}': {str(e)}"
+                )
+                logger.exception(message)
+                return None, message, None
+
+            if not isinstance(response_data, dict):
+                message = (
+                    f"Unexpected Miriade payload type for candidate '{target_candidate}': "
+                    f"{type(response_data)}"
+                )
+                logger.error(message)
+                return None, message, None
+
+            response_flag = response_data.get("flag")
+            response_message = str(response_data.get("message", ""))
+            response_rows = response_data.get("data")
+
+            if (isinstance(response_flag, (int, float)) and response_flag < 0) or response_rows is None:
+                candidate_error = response_message or (
+                    f"Miriade returned invalid payload for candidate '{target_candidate}'"
+                )
+                candidate_failed = True
+                if _miriade_not_found_message(candidate_error):
+                    logger.warning(
+                        f"Miriade candidate '{target_candidate}' not found. Trying next candidate."
+                    )
+                else:
+                    logger.warning(
+                        f"Miriade candidate '{target_candidate}' rejected: {candidate_error}"
+                    )
+                break
+
             if miriade_data is None:
-                # First chunk - initialize miriade_data
-                if 'data' not in response_data:
-                    logger.error(f"No data found for {iau_name} in Miriade response")
-                    return None
                 miriade_data = response_data
             else:
-                # Subsequent chunks - merge the new data with the existing data
-                if 'data' in response_data:
-                    miriade_data['data'].extend(response_data['data'])
-            logger.info(f"Received Miriade data with {len(miriade_data.get('data', [])) if miriade_data else 0} records")
-        return miriade_data
-    
-    except requests.RequestException as e:
-        logger.error(f"Request error fetching Miriade data: {e}")
-        return None
-    except ValueError as e:
-        logger.error(f"JSON parsing error with Miriade response: {e}")
-        return None
+                miriade_data.setdefault("data", [])
+                miriade_data["data"].extend(response_rows)
+
+            logger.info(
+                f"Miriade candidate '{target_candidate}' accumulated "
+                f"{len(miriade_data.get('data', [])) if miriade_data else 0} records"
+            )
+
+        if not candidate_failed and miriade_data and "data" in miriade_data:
+            logger.info(f"Miriade request resolved with target candidate '{target_candidate}'")
+            return miriade_data, None, target_candidate
+
+        last_candidate_error = candidate_error or (
+            f"Miriade candidate '{target_candidate}' returned no usable data"
+        )
+
+    final_error = (
+        "Failed to resolve asteroid in Miriade with all target candidates. "
+        f"Last error: {last_candidate_error}"
+    )
+    logger.error(final_error)
+    return None, final_error, None
 
 
 def fetch_ztf_data(asteroid_name: str):
@@ -477,7 +599,7 @@ def fetch_ztf_data(asteroid_name: str):
                     logger.warning(f"Could not check online ZTF count (HTTP {response_check.status_code}). Using cached data.")
                     return ztf_df_local.to_json(), iau_designation
             except Exception as e:
-                logger.warning(f"Error checking online ZTF count: {str(e)}. Using cached data.")
+                logger.warning(f"Error checking online ZTF count: {str(e)}. Using cached data.", exc_info=True)
                 return ztf_df_local.to_json(), iau_designation
     
     logger.info(f"Fetching ZTF data for {iau_designation}")
@@ -545,7 +667,7 @@ def fetch_asteroid():
             "id": iau_designation
         })
     except Exception as e:
-        logger.error(f"Error fetching MPC data for {asteroid_name}: {str(e)}")
+        logger.exception(f"Error fetching MPC data for {asteroid_name}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
 
 
@@ -576,7 +698,7 @@ def fetch_ztf():
             "id": iau_designation
         })
     except Exception as e:
-        logger.error(f"Error fetching ZTF data for {asteroid_name}: {str(e)}")
+        logger.exception(f"Error fetching ZTF data for {asteroid_name}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
 
 
@@ -588,13 +710,9 @@ def fetch_miriade():
     data = request.get_json()
     input_name = data.get('userInput', '')
     logger.info(f"Fetching Miriade data for asteroid {input_name}")
-    print("Input name:", input_name)
-    # if "C/" in input_name:
-    #     input_name = f"c:/{input_name}"
 
     # Check asteroid id
     id = get_id(input_name)
-    print("ID:", id)
     iau_designation = None
     safe_designation = None
     iau_name = None
@@ -673,20 +791,27 @@ def fetch_miriade():
         # epochs = Time(epochs[:500], format='isot', scale='utc')
         logger.debug(f"Converted epochs to Julian Date: {epochs_jd[:5]}... (total {len(epochs)} epochs)")
     except Exception as e:
-        logger.error(f"Error converting epochs to Julian Date: {str(e)}")
+        logger.exception(f"Error converting epochs to Julian Date: {str(e)}")
         return jsonify({"status": "error", "message": f"Error converting epochs to Julian Date: {str(e)}"})
 
     # Convert to Julian Date
     # epochs_jd = np.array(epochs.jd)
     # logger.debug(f"Epochs for Miriade request: {epochs_jd[:5]}... (total {len(epochs_jd)} epochs)")
     
-    # # Send the request to Miriade
-    logger.info(f"Fetching Miriade data for asteroid {input_name} with {len(epochs_jd) } epochs")
+    target_candidates = build_miriade_target_candidates(
+        input_name=input_name,
+        iau_designation=iau_designation,
+        iau_name=iau_name,
+    )
+    logger.info(f"Miriade target candidates for {input_name}: {target_candidates}")
+
+    # Send the request to Miriade
+    logger.info(f"Fetching Miriade data for asteroid {input_name} with {len(epochs_jd)} epochs")
     try:
-        if iau_name is not None:
-            miriade_data = fetch_miriade_data(iau_name, epochs_jd)
-        else:
-            miriade_data = fetch_miriade_data(iau_designation, epochs_jd)
+        miriade_data, miriade_error, resolved_target = fetch_miriade_data(
+            target_candidates=target_candidates,
+            jd=epochs_jd.tolist(),
+        )
         
         if miriade_data and "data" in miriade_data:
             miriade_df = pd.DataFrame(miriade_data["data"])
@@ -700,6 +825,8 @@ def fetch_miriade():
              # Ensure that 'Jd' column is present
             action = "Updating" if needs_update else "Saving"
             logger.info(f"{action} {miriade_df.shape[0]} Miriade records for {iau_designation} to database")
+            if resolved_target is not None:
+                logger.info(f"Miriade resolved target for {iau_designation}: {resolved_target}")
             
             # Save to DuckDB database
             db_utils.save_miriade_data(safe_designation, miriade_df)
@@ -714,12 +841,13 @@ def fetch_miriade():
                 "id": iau_designation
             })
         else:
-            logger.error(f"Failed to get valid Miriade data for {input_name}")
+            error_message = miriade_error or f"Failed to get valid Miriade data for {input_name}"
+            logger.error(error_message)
             db_utils.record_data_download(input_name, 'miriade', 0, 'error', 
-                                         "No valid data returned")
-            return jsonify({"status": "error", "message": "Failed to get valid Miriade data"})
+                                         error_message)
+            return jsonify({"status": "error", "message": error_message})
     except Exception as e:
-        logger.error(f"Error fetching Miriade data for {input_name}: {str(e)}")
+        logger.exception(f"Error fetching Miriade data for {input_name}: {str(e)}")
         db_utils.record_data_download(input_name, 'miriade', 0, 'error', str(e))
         return jsonify({"status": "error", "message": str(e)})
 
@@ -986,7 +1114,7 @@ def plot_phase():
                 "message": f"No matching phase data found for asteroid {asteroid_id}"
             })
     except Exception as e:
-        logger.error(f"Error processing phase plot data for {asteroid_id}: {str(e)}")
+        logger.exception(f"Error processing phase plot data for {asteroid_id}: {str(e)}")
         return jsonify({
             "status": "error",
             "message": f"Error processing phase plot data: {str(e)}"
@@ -1236,7 +1364,7 @@ def export_data():
             )
     
     except Exception as e:
-        logger.error(f"Error exporting data for {asteroid_id}: {str(e)}")
+        logger.exception(f"Error exporting data for {asteroid_id}: {str(e)}")
         return jsonify({
             "status": "error",
             "message": f"Error exporting data: {str(e)}"

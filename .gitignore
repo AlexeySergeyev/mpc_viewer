@@ -63,4 +63,4 @@ instance/
 *.csv.gz
 *.json
 
-db/**
+db/

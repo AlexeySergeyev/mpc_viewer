@@ -24,9 +24,10 @@ keepalive = 5
 log_dir = "./logs"
 os.makedirs(log_dir, exist_ok=True)
 
-accesslog = os.path.join(log_dir, "gunicorn_access.log")
-errorlog = os.path.join(log_dir, "gunicorn_error.log")
-loglevel = "info"
+accesslog = os.getenv("GUNICORN_ACCESS_LOG", os.path.join(log_dir, "gunicorn_access.log"))
+errorlog = os.getenv("GUNICORN_ERROR_LOG", os.path.join(log_dir, "gunicorn_error.log"))
+loglevel = os.getenv("GUNICORN_LOG_LEVEL", "info")
+capture_output = True
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
 # Process naming

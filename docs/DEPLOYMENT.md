@@ -1,443 +1,175 @@
-# MPC Viewer - Production Deployment Guide
+# MPC Viewer Deployment Guide (Docker + Nginx)
 
-## Quick Start
+This guide is the canonical deployment flow for this project.
 
-### 1. Install Dependencies
+## 1. Architecture
 
-```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+- App container: Flask app served by Gunicorn on `127.0.0.1:5000` (published by Docker)
+- Reverse proxy: Nginx on VPS (`80/443`) forwarding to `127.0.0.1:5000`
+- TLS: Let's Encrypt certificates managed on VPS by Certbot
 
-# Install requirements
-pip install -r requirements.txt
-pip install gunicorn  # Production server
-```
+## 2. Important: Where Keys Are
 
-### 2. Run with Gunicorn (Recommended for Production)
+Keys are not stored inside Docker image layers.
 
-```bash
-# Using the provided configuration file (recommended)
-gunicorn -c gunicorn_config.py app:app
+- SSH key for VPS access: local machine `~/.ssh/*`
+- Git deploy key (if private repo): VPS user `~/.ssh/*`
+- TLS private key: `/etc/letsencrypt/live/<domain>/privkey.pem` on VPS
+- TLS full chain: `/etc/letsencrypt/live/<domain>/fullchain.pem` on VPS
 
-# Or with command-line options
-gunicorn --timeout 600 --workers 4 --bind 0.0.0.0:5000 app:app
-```
+If you "do not see your key in Docker deployment", this is expected.
 
-### 3. Access the Application
+## 3. First-Time VPS Setup
 
-Open your browser and navigate to:
-- Local: `http://localhost:5000`
-- Network: `http://your-server-ip:5000`
-
-## Configuration Files
-
-### gunicorn_config.py
-
-The provided configuration file includes:
-- **Timeout**: 600 seconds (10 minutes) - Critical for Miriade requests
-- **Workers**: Automatically calculated based on CPU cores
-- **Logging**: Saves to `./logs/` directory
-- **Performance**: Auto-restart workers to prevent memory leaks
-
-### Environment Variables (Optional)
-
-Create a `.env` file for custom configuration:
-
-```bash
-# Flask configuration
-FLASK_ENV=production
-FLASK_DEBUG=0
-
-# Server configuration
-HOST=0.0.0.0
-PORT=5000
-
-# Logging level
-LOG_LEVEL=INFO
-```
-
-## Systemd Service (Linux)
-
-For automatic startup on server boot:
-
-### 1. Create Service File
-
-Create `/etc/systemd/system/mpc_viewer.service`:
-
-```ini
-[Unit]
-Description=MPC Viewer Application
-After=network.target
-
-[Service]
-Type=notify
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=/home/ubuntu/code/python/mpc_viewer
-Environment="PATH=/home/ubuntu/code/python/venvs/mpc/bin"
-ExecStart=/home/ubuntu/code/python/venvs/mpc/bin/gunicorn -c gunicorn_config.py app:app
-ExecReload=/bin/kill -s HUP $MAINPID
-KillMode=mixed
-TimeoutStopSec=5
-PrivateTmp=true
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 2. Enable and Start Service
-
-```bash
-# Reload systemd
-sudo systemctl daemon-reload
-
-# Enable service (start on boot)
-sudo systemctl enable mpc_viewer
-
-# Start service
-sudo systemctl start mpc_viewer
-
-# Check status
-sudo systemctl status mpc_viewer
-
-# View logs
-sudo journalctl -u mpc_viewer -f
-```
-
-### 3. Service Management
-
-```bash
-# Stop service
-sudo systemctl stop mpc_viewer
-
-# Restart service
-sudo systemctl restart mpc_viewer
-
-# Reload configuration (graceful)
-sudo systemctl reload mpc_viewer
-
-# Disable service
-sudo systemctl disable mpc_viewer
-```
-
-## Nginx Reverse Proxy (Optional but Recommended)
-
-### 1. Install Nginx
+Run on VPS (Ubuntu):
 
 ```bash
 sudo apt update
-sudo apt install nginx
+sudo apt install -y ca-certificates curl gnupg nginx certbot python3-certbot-nginx
+
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+sudo usermod -aG docker $USER
+newgrp docker
+docker info
 ```
 
-### 2. Configure Nginx
+## 4. Clone and Run the App
+
+Run on VPS:
+
+```bash
+cd /opt
+sudo git clone https://github.com/AlexeySergeyev/mpc_viewer.git
+sudo chown -R $USER:$USER /opt/mpc_viewer
+cd /opt/mpc_viewer
+
+docker compose -f compose.yml up --build -d
+docker compose -f compose.yml ps
+docker compose -f compose.yml logs --tail=100
+curl -I http://127.0.0.1:5000
+```
+
+Expected: `HTTP/1.1 200 OK`.
+
+## 5. Configure Nginx
 
 Create `/etc/nginx/sites-available/mpc_viewer`:
 
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;  # Change this
+    listen [::]:80;
+    server_name alexeysergeyev.online www.alexeysergeyev.online;
+    return 301 https://alexeysergeyev.online$request_uri;
+}
 
-    # Increase timeouts for long-running Miriade requests
-    proxy_connect_timeout 600s;
-    proxy_send_timeout 600s;
-    proxy_read_timeout 600s;
-    send_timeout 600s;
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name alexeysergeyev.online www.alexeysergeyev.online;
+
+    ssl_certificate /etc/letsencrypt/live/alexeysergeyev.online/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alexeysergeyev.online/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     location / {
         proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket support (if needed in future)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
 
-    # Static files (optional optimization)
-    location /static {
-        alias /home/ubuntu/code/python/mpc_viewer/static;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
+        proxy_connect_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
+        send_timeout 600s;
     }
-
-    # Logs
-    access_log /var/log/nginx/mpc_viewer_access.log;
-    error_log /var/log/nginx/mpc_viewer_error.log;
 }
 ```
 
-### 3. Enable Site
+Enable and reload:
 
 ```bash
-# Create symbolic link
-sudo ln -s /etc/nginx/sites-available/mpc_viewer /etc/nginx/sites-enabled/
-
-# Test configuration
+sudo ln -sf /etc/nginx/sites-available/mpc_viewer /etc/nginx/sites-enabled/alexeysergeyev.online
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
-
-# Restart nginx
 sudo systemctl restart nginx
 ```
 
-### 4. SSL/HTTPS with Let's Encrypt (Recommended)
+## 6. Issue/Reinstall Certificate
+
+Run on VPS:
 
 ```bash
-# Install certbot
-sudo apt install certbot python3-certbot-nginx
-
-# Get certificate
-sudo certbot --nginx -d your-domain.com
-
-# Auto-renewal (certbot sets this up automatically)
-sudo certbot renew --dry-run
+sudo certbot --nginx --redirect -d alexeysergeyev.online -d www.alexeysergeyev.online
 ```
 
-## Firewall Configuration
+If certbot asks:
+
+- Use `1` to reinstall existing certificate
+- Use `2` only when renewal is actually needed
+
+## 7. Deploy Code Changes (Regular Workflow)
+
+Local machine:
 
 ```bash
-# Allow HTTP
-sudo ufw allow 80/tcp
-
-# Allow HTTPS
-sudo ufw allow 443/tcp
-
-# Allow SSH (if not already allowed)
-sudo ufw allow 22/tcp
-
-# Enable firewall
-sudo ufw enable
-
-# Check status
-sudo ufw status
+cd /Users/alexeysergeyev/code/python/mpc/projects/mpc_viewer
+git add .
+git commit -m "Describe change"
+git push origin main
 ```
 
-## Monitoring
-
-### Check Application Status
+VPS:
 
 ```bash
-# Check if gunicorn is running
-ps aux | grep gunicorn
-
-# Check listening ports
-sudo netstat -tlnp | grep 5000
-
-# Check logs
-tail -f logs/gunicorn_error.log
-tail -f logs/gunicorn_access.log
-tail -f logs/$(date +%Y-%m-%d).log  # Application logs
-```
-
-### Log Rotation
-
-Create `/etc/logrotate.d/mpc_viewer`:
-
-```
-/home/ubuntu/code/python/mpc_viewer/logs/*.log {
-    daily
-    rotate 14
-    compress
-    delaycompress
-    notifempty
-    missingok
-    sharedscripts
-    postrotate
-        systemctl reload mpc_viewer > /dev/null 2>&1 || true
-    endscript
-}
-```
-
-## Troubleshooting
-
-### Worker Timeout Errors
-
-**Symptom:**
-```
-[CRITICAL] WORKER TIMEOUT (pid:XXXXX)
-```
-
-**Solution:**
-- Increase timeout in `gunicorn_config.py` (already set to 600s)
-- Check if Miriade API is responding slowly
-- Review logs for specific errors
-
-### Database Locked Errors
-
-**Symptom:**
-```
-database is locked
-```
-
-**Solution:**
-- Reduce number of workers (DuckDB has limited concurrency)
-- Use `workers = 2` in gunicorn_config.py for DuckDB
-
-### Memory Issues
-
-**Symptom:**
-- Slow performance
-- Workers killed by OOM killer
-
-**Solution:**
-- Reduce `max_requests` in gunicorn_config.py
-- Reduce number of workers
-- Increase server RAM
-
-### Port Already in Use
-
-**Symptom:**
-```
-[ERROR] Address already in use
-```
-
-**Solution:**
-```bash
-# Find process using port 5000
-sudo lsof -i :5000
-
-# Kill the process
-kill -9 PID
-
-# Or change port in gunicorn_config.py
-bind = "0.0.0.0:8000"
-```
-
-## Performance Optimization
-
-### 1. Database Location
-
-For better performance, ensure DuckDB files are on fast storage:
-- SSD preferred over HDD
-- Local storage preferred over network storage
-
-### 2. Worker Count
-
-Adjust based on your server:
-```python
-# In gunicorn_config.py
-# For CPU-intensive tasks
-workers = multiprocessing.cpu_count() * 2 + 1
-
-# For I/O-intensive tasks (database operations)
-workers = min(4, multiprocessing.cpu_count())
-```
-
-### 3. Caching
-
-The application already caches data in DuckDB:
-- First fetch: Slow (fetches from API)
-- Subsequent fetches: Fast (loads from database)
-
-## Security Considerations
-
-### 1. Run as Non-Root User
-
-Never run as root. Create dedicated user:
-```bash
-sudo useradd -r -s /bin/false mpc_viewer
-```
-
-### 2. Limit File Permissions
-
-```bash
-# Application directory
-chmod 755 /home/ubuntu/code/python/mpc_viewer
-
-# Database directory
-chmod 755 db/
-chmod 644 db/*.duckdb
-
-# Logs directory
-chmod 755 logs/
-chmod 644 logs/*.log
-```
-
-### 3. Environment Variables
-
-Store sensitive data in environment variables, not in code:
-```bash
-export SECRET_KEY='your-secret-key'
-export DATABASE_URL='sqlite:///db/metadata.duckdb'
-```
-
-## Backup Strategy
-
-### 1. Database Backup
-
-```bash
-# Daily backup script
-#!/bin/bash
-DATE=$(date +%Y%m%d)
-BACKUP_DIR="/backups/mpc_viewer"
-DB_DIR="/home/ubuntu/code/python/mpc_viewer/db"
-
-mkdir -p $BACKUP_DIR
-tar -czf $BACKUP_DIR/mpc_viewer_db_$DATE.tar.gz $DB_DIR
-find $BACKUP_DIR -name "*.tar.gz" -mtime +30 -delete
-```
-
-Add to crontab:
-```bash
-crontab -e
-# Add:
-0 2 * * * /path/to/backup_script.sh
-```
-
-### 2. Application Backup
-
-```bash
-# Backup application code (excluding venv and logs)
-tar --exclude='venv' --exclude='logs' --exclude='__pycache__' \
-    -czf mpc_viewer_app_$(date +%Y%m%d).tar.gz \
-    /home/ubuntu/code/python/mpc_viewer
-```
-
-## Update Procedure
-
-```bash
-# 1. Pull latest changes
-cd /home/ubuntu/code/python/mpc_viewer
+cd /opt/mpc_viewer
 git pull origin main
-
-# 2. Update dependencies
-source venv/bin/activate
-pip install -r requirements.txt
-
-# 3. Restart service
-sudo systemctl restart mpc_viewer
-
-# 4. Check status
-sudo systemctl status mpc_viewer
+docker compose -f compose.yml up --build -d
+docker compose -f compose.yml logs --tail=100
 ```
 
-## Summary
+## 8. Conflict Recovery on VPS
 
-**Minimal Production Setup:**
+If `git pull` fails with unresolved files and VPS has no important local edits:
+
 ```bash
-# 1. Install and configure
-pip install -r requirements.txt
-pip install gunicorn
-
-# 2. Run
-gunicorn -c gunicorn_config.py app:app
+cd /opt/mpc_viewer
+git merge --abort || true
+git fetch origin
+git reset --hard origin/main
+git clean -fd
+docker compose -f compose.yml up --build -d
 ```
 
-**Recommended Production Setup:**
-1. ✅ Gunicorn with config file
-2. ✅ Systemd service
-3. ✅ Nginx reverse proxy
-4. ✅ SSL/HTTPS
-5. ✅ Firewall configuration
-6. ✅ Log rotation
-7. ✅ Automated backups
+## 9. Health Checks
 
-For more details, see:
-- `docs/gunicorn_timeout_fix.md` - Timeout configuration
-- `docs/run_remote_server.md` - Remote deployment guide
-- `gunicorn_config.py` - Production configuration
+Run on VPS:
+
+```bash
+docker compose -f compose.yml ps
+curl -I http://127.0.0.1:5000
+sudo nginx -t
+curl -I https://alexeysergeyev.online
+```
+
+## 10. Common Failures
+
+- `permission denied /var/run/docker.sock`:
+  - run `sudo usermod -aG docker $USER`, then relogin/newgrp
+- `502 Bad Gateway`:
+  - Nginx upstream is wrong or app container is down
+  - verify `proxy_pass http://127.0.0.1:5000;`
+- `invalid number of arguments in proxy_pass`:
+  - syntax issue in Nginx site file
+  - rewrite config and run `sudo nginx -t`
+- DuckDB lock errors under Gunicorn:
+  - use single worker process with threads (`workers = 1`, `gthread`)
+
