@@ -610,7 +610,7 @@ def fetch_ztf_data(asteroid_name: str):
         'output-format': 'json'
     }
     response = requests.post(
-        'https://api.fink-portal.org/api/v1/sso',
+        'https://api.ztf.fink-portal.org/api/v1/sso',
         json=query
     )
     logger.debug(f"Request URL: {response.url}")
