@@ -1,8 +1,8 @@
 # Asteroid Data Viewer
 
-A web application for visualizing asteroid observation data from multiple sources including Minor Planet Center (MPC), IMCCE Miriade, and Zwicky Transient Facility (ZTF).
+A web application for visualizing asteroid observation data from multiple sources including Minor Planet Center (MPC), IMCCE Miriade, and Zwicky Transient Facility (ZTF). The interface uses a public-facing astronomy design with a generated blue asteroid hero image, a focused object search panel, and a dedicated plotting workspace.
 
-![Asteroid Data Viewer](static/images/front.png)
+![Asteroid Data Viewer redesigned interface](static/images/readme-screenshot.png)
 
 ## Features
 
@@ -15,10 +15,24 @@ A web application for visualizing asteroid observation data from multiple source
   - Time-series magnitude plots
   - Phase-magnitude relation plots
   - Color-coded observatory identification
+  - Responsive chart frame sized to fit generated Plotly figures
 
 - **Data Caching**: Stores retrieved data locally to avoid redundant API calls and enable offline usage
 
-- **Responsive UI**: Bootstrap-based interface that works across device sizes
+- **Redesigned Astronomy UI**:
+  - Blue-toned generated asteroid hero background
+  - Search and data-source controls in the first viewport
+  - Separate visualization panel for plotting and exporting
+  - Responsive layout for desktop and mobile screens
+
+## Interface Design
+
+The current design is organized around two main areas:
+
+1. **Hero search area**: A cinematic blue asteroid background introduces the app while keeping the asteroid identifier field and MPC/Miriade/ZTF load buttons immediately available.
+2. **Visualization workspace**: The lower panel contains the loaded asteroid ID, plot controls, export menu, and an interactive chart frame sized for Plotly output.
+
+The README screenshot lives at `static/images/readme-screenshot.png`, and the generated hero asset used by the page lives at `static/images/generated-asteroid-hero-layout.png`. The active styling is in `static/css/styles.css`, and the existing JavaScript hooks are preserved in `templates/index.html` so the data-loading, plotting, and export behavior continue to work.
 
 ## Prerequisites
 
@@ -74,6 +88,9 @@ python3 app.py
 3. **Generate plots**:
    - Plot Observations: Shows magnitude over time
    - Plot Phase: Shows magnitude vs. phase angle (requires both MPC and Miriade data)
+4. **Export data** from the visualization panel:
+   - All sources as a ZIP archive
+   - MPC, Miriade, or ZTF as individual CSV files
 
 ## Project Structure
 
@@ -83,10 +100,14 @@ mpc_observations/
 ├── static/             # Static assets
 │   ├── css/            # CSS stylesheets
 │   │   └── styles.css  # Custom styles
+│   ├── images/         # UI images
+│   │   ├── readme-screenshot.png
+│   │   └── generated-asteroid-hero-layout.png
 │   └── js/             # JavaScript files
 │       └── app.js      # Client-side functionality
 ├── templates/          # HTML templates
 │   └── index.html      # Main application page
+├── tests/              # Frontend structure regression tests
 └── db/                 # Data storage directory
     ├── designation/    # Asteroid designation data
     ├── miriade/        # Cached Miriade data

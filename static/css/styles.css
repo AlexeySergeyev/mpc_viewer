@@ -1,23 +1,396 @@
+:root {
+    --ink: #0a1d33;
+    --muted: #4f7ea8;
+    --panel: #f8fbff;
+    --line: #b9d3ec;
+    --sky: #177fa4;
+    --gold: #d59b32;
+    --deep: #061a32;
+    --paper: #eaf4ff;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    min-height: 100%;
+}
+
 body {
-    padding: 20px;
-    background-color: #f5f5f5;
+    min-height: 100vh;
+    margin: 0;
+    color: var(--ink);
+    background: var(--paper);
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-.container {
-    background-color: white;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+
+.site-hero {
+    position: relative;
+    min-height: 72vh;
+    overflow: hidden;
+    color: #ffffff;
+    background:
+        linear-gradient(90deg, rgba(3, 20, 44, 0.96) 0%, rgba(7, 43, 82, 0.72) 40%, rgba(8, 74, 123, 0.24) 100%),
+        url("../images/generated-asteroid-hero-layout.png") center right / cover no-repeat;
 }
-.card {
-    margin-bottom: 20px;
+
+.site-hero::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 30%;
+    content: "";
+    background: linear-gradient(180deg, rgba(7, 36, 71, 0) 0%, rgba(234, 244, 255, 1) 100%);
+    pointer-events: none;
 }
-#mpcSpinner, #miriadeSpinner, #plotSpinner, #plotPhaseSpinner, #ztfSpinner {
+
+.site-nav {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 22px 0;
+}
+
+.brand-mark {
+    color: #ffffff;
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-decoration: none;
+    text-transform: uppercase;
+}
+
+.brand-mark:hover {
+    color: #ffffff;
+}
+
+.nav-context {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.9rem;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.74fr);
+    gap: clamp(28px, 5vw, 72px);
+    align-items: center;
+    width: min(1180px, calc(100% - 32px));
+    min-height: calc(72vh - 78px);
+    margin: 0 auto;
+    padding: 38px 0 104px;
+}
+
+.hero-copy {
+    max-width: 680px;
+}
+
+.eyebrow,
+.section-kicker {
+    margin: 0 0 10px;
+    color: var(--gold);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.hero-copy h1 {
+    margin: 0;
+    max-width: 760px;
+    font-size: clamp(3.2rem, 7vw, 6.8rem);
+    font-weight: 850;
+    line-height: 0.94;
+    letter-spacing: 0;
+}
+
+.hero-lede {
+    max-width: 560px;
+    margin: 24px 0 0;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: clamp(1.05rem, 2vw, 1.28rem);
+    line-height: 1.6;
+}
+
+.hero-search,
+.workflow-panel,
+.plot-stage {
+    border: 1px solid rgba(184, 215, 242, 0.42);
+    border-radius: 8px;
+    background: rgba(248, 251, 255, 0.94);
+    box-shadow: 0 24px 80px rgba(4, 35, 73, 0.28);
+}
+
+.hero-search {
+    padding: 28px;
+    color: var(--ink);
+    backdrop-filter: blur(16px);
+}
+
+.hero-search h2,
+.workflow-panel h2,
+.plot-stage h2 {
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(1.45rem, 2vw, 2rem);
+    font-weight: 780;
+    letter-spacing: 0;
+}
+
+.form-label {
+    margin-bottom: 8px;
+    color: #234d76;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.form-control {
+    min-height: 46px;
+    border-color: #a7c7e7;
+    border-radius: 6px;
+    color: var(--ink);
+}
+
+.form-control:focus {
+    border-color: var(--sky);
+    box-shadow: 0 0 0 0.22rem rgba(31, 122, 140, 0.18);
+}
+
+.search-row {
+    margin-top: 18px;
+}
+
+.source-actions,
+.visual-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.btn {
+    min-height: 44px;
+    border-radius: 6px;
+    font-weight: 750;
+    letter-spacing: 0;
+}
+
+.btn-primary {
+    border-color: var(--sky);
+    background-color: var(--sky);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    border-color: #0f6384;
+    background-color: #0f6384;
+}
+
+.btn-outline-light {
+    border-color: rgba(23, 127, 164, 0.32);
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.48);
+}
+
+.btn-outline-light:hover,
+.btn-outline-light:focus {
+    border-color: var(--deep);
+    color: #ffffff;
+    background: var(--deep);
+}
+
+.btn-success {
+    border-color: #2f7d59;
+    background-color: #2f7d59;
+}
+
+.btn-success:hover,
+.btn-success:focus {
+    border-color: #256346;
+    background-color: #256346;
+}
+
+.btn-dark {
+    border-color: var(--deep);
+    background-color: var(--deep);
+}
+
+.page-shell {
+    position: relative;
+    z-index: 2;
+    width: min(1180px, calc(100% - 32px));
+    margin: -48px auto 56px;
+}
+
+.workflow-panel {
+    padding: 28px;
+    border-color: var(--line);
+    background: var(--panel);
+}
+
+.workflow-header,
+.plot-stage-header {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 22px;
+}
+
+.workflow-note {
+    max-width: 280px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.plot-controls {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto;
+    gap: 18px;
+    align-items: end;
+}
+
+.id-field {
+    min-width: 0;
+}
+
+.visual-actions {
+    justify-content: flex-end;
+    margin-top: 0;
+}
+
+.dropdown-menu {
+    border-radius: 6px;
+    border-color: var(--line);
+    box-shadow: 0 16px 40px rgba(4, 35, 73, 0.16);
+}
+
+.plot-stage {
+    margin-top: 24px;
+    padding: 24px;
+    overflow: hidden;
+    border-color: var(--line);
+    background: #f8fbff;
+}
+
+.plot-stage-header {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+#mpcSpinner,
+#miriadeSpinner,
+#plotSpinner,
+#plotPhaseSpinner,
+#ztfSpinner {
     display: none;
 }
+
 #plotContainer {
-    height: 600px;
-    margin-top: 20px;
+    width: 100%;
+    height: clamp(600px, 68vh, 720px);
+    overflow: hidden;
 }
+
+#plotContainer .plot-container,
+#plotContainer .svg-container,
+#plotContainer .main-svg {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+}
+
 .status-message {
-    margin-top: 10px;
+    margin-top: 14px;
+    border-radius: 6px;
+}
+
+@media (max-width: 991.98px) {
+    .site-hero {
+        min-height: auto;
+        background-position: center;
+    }
+
+    .site-hero::after {
+        height: 20%;
+    }
+
+    .hero-content {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding: 24px 0 88px;
+    }
+
+    .hero-copy h1 {
+        max-width: 620px;
+    }
+
+    .plot-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .visual-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .site-nav,
+    .hero-content,
+    .page-shell {
+        width: min(100% - 24px, 1180px);
+    }
+
+    .site-nav {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .hero-copy h1 {
+        font-size: 3.1rem;
+    }
+
+    .hero-search,
+    .workflow-panel,
+    .plot-stage {
+        padding: 20px;
+    }
+
+    .source-actions,
+    .visual-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .source-actions .btn,
+    .visual-actions .btn,
+    .visual-actions .dropdown {
+        width: 100%;
+    }
+
+    .workflow-header,
+    .plot-stage-header {
+        display: block;
+    }
+
+    .workflow-note {
+        max-width: none;
+        margin-top: 10px;
+    }
+
+    #plotContainer {
+        min-height: 420px;
+    }
 }
